@@ -1,5 +1,5 @@
-const read       = require('read')
     , hyperquest = require('hyperquest')
+const read       = require('read')
     , bl         = require('bl')
     , path       = require('path')
     , fs         = require('fs')
@@ -76,9 +76,10 @@ function auth (options, callback) {
 
   try {
     authData = require(configPath)
-    if (authData.user && authData.token)
-      return callback(null, authData)
   } catch (e) {}
+
+  if (authData && authData.user && authData.token)
+    return callback(null, authData)
 
   prompt(function (err, data) {
     if (err)
