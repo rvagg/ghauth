@@ -1,5 +1,5 @@
-    , hyperquest = require('hyperquest')
 const read       = require('read')
+    , hyperquest = require('hyperquest')
     , bl         = require('bl')
     , path       = require('path')
     , fs         = require('fs')
