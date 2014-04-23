@@ -47,18 +47,18 @@ function createAuth (options, callback) {
 
 
 function prompt (callback) {
-  read({ prompt: 'GitHub username:' }, function (err, user) {
+  read({ prompt: 'Your GitHub username:' }, function (err, user) {
     if (err)
       return callback(err)
 
     if (user === '')
       return callback()
 
-    read({ prompt: 'GitHub password:', silent: true, replace: '\u2714' }, function (err, pass) {
+    read({ prompt: 'Your GitHub password:', silent: true, replace: '\u2714' }, function (err, pass) {
       if (err)
         return callback(err)
 
-      read({ prompt: 'GitHub OTP (optional):' }, function (err, otp) {
+      read({ prompt: 'Your GitHub OTP/2FA Code (optional):' }, function (err, otp) {
         if (err)
           return callback(err)
 
