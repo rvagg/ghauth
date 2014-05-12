@@ -32,7 +32,7 @@ function createAuth (options, callback) {
     data = JSON.parse(data.toString())
 
     if (data.message)
-      return callback(new Error(data.message))
+      return callback(new Error(data))
     if (!data.token)
       return callback(new Error('No token from GitHub!'))
 
