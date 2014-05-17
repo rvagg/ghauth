@@ -11,6 +11,9 @@ const ghauth = require('./')
 
           // (optional)
         , userAgent  : 'My Awesome App'
+
+          // (optional) prompt for the token note field
+        , promptNote : true
       }
 
 ghauth(authOptions, function (err, authData) {

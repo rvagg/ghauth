@@ -12,6 +12,11 @@ const defaultUA     = 'Magic Node.js application that does magic things'
     , authUrl       = 'https://api.github.com/authorizations'
 
 
+function noopAsync () {
+  var callback = Array.prototype.pop.call(arguments, arguments.length)
+  callback()
+}
+
 function createAuth (options, callback) {
   var reqOptions = {
       headers : {
@@ -46,23 +51,28 @@ function createAuth (options, callback) {
 }
 
 
-function prompt (callback) {
-  read({ prompt: 'Your GitHub username:' }, function (err, user) {
+function prompt (options, callback) {
+  (options.promptNote ? read : noopAsync)({ prompt: 'Token note:' }, function (err, note) {
     if (err)
       return callback(err)
 
-    if (user === '')
-      return callback()
-
-    read({ prompt: 'Your GitHub password:', silent: true, replace: '\u2714' }, function (err, pass) {
+    read({ prompt: 'Your GitHub username:' }, function (err, user) {
       if (err)
         return callback(err)
 
-      read({ prompt: 'Your GitHub OTP/2FA Code (optional):' }, function (err, otp) {
+      if (user === '')
+        return callback()
+
+      read({ prompt: 'Your GitHub password:', silent: true, replace: '\u2714' }, function (err, pass) {
         if (err)
           return callback(err)
 
-        callback(null, { user: user, pass: pass, otp: otp })
+        read({ prompt: 'Your GitHub OTP/2FA Code (optional):' }, function (err, otp) {
+          if (err)
+            return callback(err)
+
+          callback(null, { user: user, pass: pass, otp: otp, note: note })
+        })
       })
     })
   })
@@ -81,7 +91,7 @@ function auth (options, callback) {
   if (authData && authData.user && authData.token)
     return callback(null, authData)
 
-  prompt(function (err, data) {
+  prompt(options, function (err, data) {
     if (err)
       return callback(err)
 
