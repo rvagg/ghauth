@@ -46,7 +46,7 @@ function createAuth (options, callback) {
 }
 
 
-function prompt (callback) {
+function prompt (options, callback) {
   read({ prompt: 'Your GitHub username:' }, function (err, user) {
     if (err)
       return callback(err)
@@ -58,12 +58,30 @@ function prompt (callback) {
       if (err)
         return callback(err)
 
-      read({ prompt: 'Your GitHub OTP/2FA Code (optional):' }, function (err, otp) {
-        if (err)
-          return callback(err)
+        // Check for 2FA. This triggers an SMS if needed
+        var reqOptions = {
+          headers : {
+              'User-Agent'       : options.userAgent || defaultUA
+          }
+          , method  : 'post'
+          , auth    : user + ':' + pass
+        }
+        var req = hyperquest(authUrl, reqOptions, function (err, response) {
+          if (err)
+            return callback(err)
+            
+          var otp = response.headers['x-github-otp']
+          if (!otp || otp.indexOf('required') < 0)
+            return callback(null, { user: user, pass: pass, otp: null })
 
-        callback(null, { user: user, pass: pass, otp: otp })
-      })
+          read({ prompt: 'Your GitHub OTP/2FA Code (optional):' }, function (err, otp) {
+            if (err)
+              return callback(err)
+
+            callback(null, { user: user, pass: pass, otp: otp })
+          })
+        })
+      req.end();
     })
   })
 }
@@ -81,7 +99,7 @@ function auth (options, callback) {
   if (authData && authData.user && authData.token)
     return callback(null, authData)
 
-  prompt(function (err, data) {
+  prompt(options, function (err, data) {
     if (err)
       return callback(err)
 
