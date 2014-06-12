@@ -50,6 +50,10 @@ $ node awesome.js
   token: '24d5dee258c64aef38a66c0c5eca459c379901c2' }
 ```
 
+Optionally persistency can be turned off by setting the option `'noSave'` to `true`.
+However only use this if you are sure about it, since repeating GitHub authentications
+will be rejected by the API.
+
 ## License
 
 **ghauth** is Copyright (c) 2014 Rod Vagg [@rvagg](https://github.com/rvagg) and licensed under the MIT licence. All rights not explicitly granted in the MIT license are reserved. See the included LICENSE file for more details.

@@ -90,15 +90,19 @@ function auth (options, callback) {
   var configPath = path.join(process.env.HOME || process.env.USERPROFILE, '.config', options.configName + '.json')
     , authData
 
-  mkdirp.sync(path.dirname(configPath))
+  if (!options.noSave) {
 
-  try {
-    authData = require(configPath)
-  } catch (e) {}
+    mkdirp.sync(path.dirname(configPath))
 
-  if (authData && authData.user && authData.token)
-    return callback(null, authData)
+    try {
+      authData = require(configPath)
+    } catch (e) {}
 
+    if (authData && authData.user && authData.token)
+      return callback(null, authData)
+
+  }
+  
   prompt(options, function (err, data) {
     if (err)
       return callback(err)
@@ -109,6 +113,9 @@ function auth (options, callback) {
 
       var tokenData = { user: data.user, token: token }
 
+      if (options.noSave) 
+        return callback(null, tokenData)
+      
       fs.writeFile(configPath, JSON.stringify(tokenData), 'utf8', function (err) {
         if (err)
           return callback(err)
