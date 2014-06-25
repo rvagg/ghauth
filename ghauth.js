@@ -22,6 +22,8 @@ function createAuth (options, callback) {
     , method  : 'post'
     , auth    : options.user + ':' + options.pass
   }
+  
+  var currentDate = new Date().toJSON()
 
   var req = hyperquest(authUrl, reqOptions)
 
@@ -41,7 +43,7 @@ function createAuth (options, callback) {
 
   req.end(JSON.stringify({
       scopes : options.scopes || defaultScopes
-    , note   : options.note   || defaultNote
+    , note   : (options.note   || defaultNote) + ' (' + currentDate + ')'
   }))
 }
 
@@ -69,7 +71,7 @@ function prompt (options, callback) {
         var req = hyperquest(authUrl, reqOptions, function (err, response) {
           if (err)
             return callback(err)
-            
+
           var otp = response.headers['x-github-otp']
           if (!otp || otp.indexOf('required') < 0)
             return callback(null, { user: user, pass: pass, otp: null })
