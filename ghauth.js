@@ -43,7 +43,7 @@ function createAuth (options, callback) {
 
   req.end(JSON.stringify({
       scopes : options.scopes || defaultScopes
-    , note   : (options.note   || defaultNote) + ' (' + currentDate + ')'
+    , note   : (options.note  || defaultNote) + ' (' + currentDate + ')'
   }))
 }
 
