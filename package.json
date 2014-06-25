@@ -1,6 +1,6 @@
 {
   "name": "ghauth",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Create and load persistent GitHub authentication tokens for command-line apps",
   "main": "ghauth.js",
   "scripts": {},
