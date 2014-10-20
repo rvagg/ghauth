@@ -6,10 +6,10 @@ const read       = require('read')
     , mkdirp     = require('mkdirp')
     , xtend      = require('xtend')
 
-const defaultUA     = 'Magic Node.js application that does magic things'
-    , defaultScopes = []
-    , defaultNote   = 'Node.js command-line app with ghauth'
-    , authUrl       = 'https://api.github.com/authorizations'
+const defaultUA      = 'Magic Node.js application that does magic things'
+    , defaultScopes  = []
+    , defaultNote    = 'Node.js command-line app with ghauth'
+    , defaultAuthUrl = 'https://api.github.com/authorizations'
 
 
 function createAuth (options, callback) {
@@ -22,6 +22,7 @@ function createAuth (options, callback) {
     , method  : 'post'
     , auth    : options.user + ':' + options.pass
   }
+  var authUrl = options.authUrl || defaultAuthUrl
   
   var currentDate = new Date().toJSON()
 
@@ -68,6 +69,7 @@ function prompt (options, callback) {
           , method  : 'post'
           , auth    : user + ':' + pass
         }
+        var authUrl = options.authUrl || defaultAuthUrl
         var req = hyperquest(authUrl, reqOptions, function (err, response) {
           if (err)
             return callback(err)
