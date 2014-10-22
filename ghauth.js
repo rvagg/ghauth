@@ -50,14 +50,17 @@ function createAuth (options, callback) {
 
 
 function prompt (options, callback) {
-  read({ prompt: 'Your GitHub username:' }, function (err, user) {
+  var promptName = options.promptName || 'GitHub'
+  var usernamePrompt = 'Your ' + promptName + ' username:'
+  var passwordPrompt = 'Your ' + promptName + ' password:'
+  read({ prompt: usernamePrompt }, function (err, user) {
     if (err)
       return callback(err)
 
     if (user === '')
       return callback()
 
-    read({ prompt: 'Your GitHub password:', silent: true, replace: '\u2714' }, function (err, pass) {
+    read({ prompt: passwordPrompt, silent: true, replace: '\u2714' }, function (err, pass) {
       if (err)
         return callback(err)
 
