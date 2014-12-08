@@ -6,10 +6,11 @@ const read       = require('read')
     , mkdirp     = require('mkdirp')
     , xtend      = require('xtend')
 
-const defaultUA      = 'Magic Node.js application that does magic things'
-    , defaultScopes  = []
-    , defaultNote    = 'Node.js command-line app with ghauth'
-    , defaultAuthUrl = 'https://api.github.com/authorizations'
+const defaultUA         = 'Magic Node.js application that does magic things with ghauth'
+    , defaultScopes     = []
+    , defaultNote       = 'Node.js command-line app with ghauth'
+    , defaultAuthUrl    = 'https://api.github.com/authorizations'
+    , defaultPromptName = 'GitHub'
 
 
 function createAuth (options, callback) {
@@ -50,7 +51,7 @@ function createAuth (options, callback) {
 
 
 function prompt (options, callback) {
-  var promptName     = options.promptName || 'GitHub'
+  var promptName     = options.promptName || defaultPromptName
     , usernamePrompt = 'Your ' + promptName + ' username:'
     , passwordPrompt = 'Your ' + promptName + ' password:'
     , user
@@ -111,10 +112,21 @@ function prompt (options, callback) {
 
 
 function auth (options, callback) {
-  var configPath = path.join(process.env.HOME || process.env.USERPROFILE, '.config', options.configName + '.json')
+  if (typeof options != 'object')
+    throw new TypeError('ghauth requires an options argument')
+
+  if (typeof callback != 'function')
+    throw new TypeError('ghauth requires a callback argument')
+
+  var configPath
     , authData
 
   if (!options.noSave) {
+    if (typeof options.configName != 'string')
+      throw new TypeError('ghauth requires an options.configName property')
+
+    configPath = path.join(process.env.HOME || process.env.USERPROFILE, '.config', options.configName + '.json')
+
     mkdirp.sync(path.dirname(configPath))
 
     try {
