@@ -3,14 +3,18 @@
   "version": "0.3.1",
   "description": "Create and load persistent GitHub authentication tokens for command-line apps",
   "main": "ghauth.js",
-  "scripts": {},
+  "scripts": {
+    "test": "node test.js"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/rvagg/ghauth.git"
   },
   "homepage": "https://github.com/rvagg/ghauth",
   "authors": [
-    "Rod Vagg <rod@vagg.org> (https://github.com/rvagg)"
+    "Rod Vagg <r@va.gg> (https://github.com/rvagg)",
+    "Jeppe Nejsum Madsen <jeppe@ingolfs.dk> (https://github.com/jeppenejsum)",
+    "Max Ogden <max@maxogden.com> (https://github.com/maxogden)"
   ],
   "keywords": [
     "github",
