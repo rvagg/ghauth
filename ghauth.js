@@ -13,22 +13,22 @@ const defaultUA      = 'Magic Node.js application that does magic things'
 
 
 function createAuth (options, callback) {
-  var reqOptions = {
-      headers : {
-          'X-GitHub-OTP' : options.otp       || null
-        , 'User-Agent'   : options.userAgent || defaultUA
-        , 'Content-type' : 'application/json'
+  var reqOptions  = {
+          headers : {
+              'X-GitHub-OTP' : options.otp       || null
+            , 'User-Agent'   : options.userAgent || defaultUA
+            , 'Content-type' : 'application/json'
+          }
+        , method  : 'post'
+        , auth    : options.user + ':' + options.pass
       }
-    , method  : 'post'
-    , auth    : options.user + ':' + options.pass
-  }
-  var authUrl = options.authUrl || defaultAuthUrl
-  
-  var currentDate = new Date().toJSON()
+    , authUrl     = options.authUrl || defaultAuthUrl
+    , currentDate = new Date().toJSON()
+    , req         = hyperquest(authUrl, reqOptions)
 
-  var req = hyperquest(authUrl, reqOptions)
+  req.pipe(bl(afterCreateAuthResponse))
 
-  req.pipe(bl(function (err, data) {
+  function afterCreateAuthResponse (err, data) {
     if (err)
       return callback(err)
 
@@ -40,7 +40,7 @@ function createAuth (options, callback) {
       return callback(new Error('No token from GitHub!'))
 
     callback(null, data.token)
-  }))
+  }
 
   req.end(JSON.stringify({
       scopes : options.scopes || defaultScopes
@@ -50,55 +50,71 @@ function createAuth (options, callback) {
 
 
 function prompt (options, callback) {
-  var promptName = options.promptName || 'GitHub'
-  var usernamePrompt = 'Your ' + promptName + ' username:'
-  var passwordPrompt = 'Your ' + promptName + ' password:'
-  read({ prompt: usernamePrompt }, function (err, user) {
+  var promptName     = options.promptName || 'GitHub'
+    , usernamePrompt = 'Your ' + promptName + ' username:'
+    , passwordPrompt = 'Your ' + promptName + ' password:'
+    , user
+    , pass
+
+  read({ prompt: usernamePrompt }, afterUsernameRead)
+
+  function afterUsernameRead (err, _user) {
     if (err)
       return callback(err)
 
-    if (user === '')
+    if (_user === '')
       return callback()
 
-    read({ prompt: passwordPrompt, silent: true, replace: '\u2714' }, function (err, pass) {
-      if (err)
-        return callback(err)
+    user = _user
 
-        // Check for 2FA. This triggers an SMS if needed
-        var reqOptions = {
-          headers : {
-              'User-Agent'       : options.userAgent || defaultUA
-          }
+    read({ prompt: passwordPrompt, silent: true, replace: '\u2714' }, afterPasswordRead)
+  }
+
+  function afterPasswordRead (err, _pass) {
+    if (err)
+      return callback(err)
+
+    pass = _pass
+
+    // Check for 2FA. This triggers an SMS if needed
+    var reqOptions = {
+            headers : {
+              'User-Agent' : options.userAgent || defaultUA
+            }
           , method  : 'post'
           , auth    : user + ':' + pass
         }
-        var authUrl = options.authUrl || defaultAuthUrl
-        var req = hyperquest(authUrl, reqOptions, function (err, response) {
-          if (err)
-            return callback(err)
+      , authUrl   = options.authUrl || defaultAuthUrl
+    
+    hyperquest(authUrl, reqOptions, after2FaResponse).end();
+  }
 
-          var otp = response.headers['x-github-otp']
-          if (!otp || otp.indexOf('required') < 0)
-            return callback(null, { user: user, pass: pass, otp: null })
+  function after2FaResponse (err, response) {
+    if (err)
+      return callback(err)
 
-          read({ prompt: 'Your GitHub OTP/2FA Code (optional):' }, function (err, otp) {
-            if (err)
-              return callback(err)
+    var otp = response.headers['x-github-otp']
 
-            callback(null, { user: user, pass: pass, otp: otp })
-          })
-        })
-      req.end();
-    })
-  })
+    if (!otp || otp.indexOf('required') < 0)
+      return callback(null, { user: user, pass: pass, otp: null })
+
+    read({ prompt: 'Your GitHub OTP/2FA Code (optional):' }, afterOtpRead)
+  }
+
+  function afterOtpRead (err, otp) {
+    if (err)
+      return callback(err)
+
+    callback(null, { user: user, pass: pass, otp: otp })
+  }
 }
+
 
 function auth (options, callback) {
   var configPath = path.join(process.env.HOME || process.env.USERPROFILE, '.config', options.configName + '.json')
     , authData
 
   if (!options.noSave) {
-
     mkdirp.sync(path.dirname(configPath))
 
     try {
@@ -107,14 +123,17 @@ function auth (options, callback) {
 
     if (authData && authData.user && authData.token)
       return callback(null, authData)
-
   }
   
-  prompt(options, function (err, data) {
+  prompt(options, afterPrompt)
+
+  function afterPrompt (err, data) {
     if (err)
       return callback(err)
 
-    createAuth(xtend(options, data), function (err, token) {
+    createAuth(xtend(options, data), afterCreateAuth)
+
+    function afterCreateAuth (err, token) {
       if (err)
         return callback(err)
 
@@ -123,14 +142,17 @@ function auth (options, callback) {
       if (options.noSave) 
         return callback(null, tokenData)
       
-      fs.writeFile(configPath, JSON.stringify(tokenData), 'utf8', function (err) {
+      fs.writeFile(configPath, JSON.stringify(tokenData), 'utf8', afterWrite)
+
+      function afterWrite (err) {
         if (err)
           return callback(err)
 
         callback(null, tokenData)
-      })
-    })
-  })
+      }
+    }
+  }
 }
+
 
 module.exports = auth

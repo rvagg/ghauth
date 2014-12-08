@@ -14,5 +14,6 @@ const ghauth = require('./')
       }
 
 ghauth(authOptions, function (err, authData) {
+  if (err) throw err
   console.log(authData)
 })
