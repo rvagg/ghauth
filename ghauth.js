@@ -5,6 +5,7 @@ const read       = require('read')
     , fs         = require('fs')
     , mkdirp     = require('mkdirp')
     , xtend      = require('xtend')
+    , appCfg     = require('application-config')
 
 const defaultUA         = 'Magic Node.js application that does magic things with ghauth'
     , defaultScopes     = []
@@ -89,7 +90,7 @@ function prompt (options, callback) {
           , auth    : user + ':' + pass
         }
       , authUrl   = options.authUrl || defaultAuthUrl
-    
+
     hyperquest(authUrl, reqOptions, after2FaResponse).end();
   }
 
@@ -121,26 +122,27 @@ function auth (options, callback) {
   if (typeof callback != 'function')
     throw new TypeError('ghauth requires a callback argument')
 
-  var configPath
-    , authData
+  var config
 
   if (!options.noSave) {
     if (typeof options.configName != 'string')
       throw new TypeError('ghauth requires an options.configName property')
 
-    configPath = path.join(process.env.HOME || process.env.USERPROFILE, '.config', options.configName + '.json')
+    config = appCfg(options.configName)
+    config.read(afterConfigRead)
+  } else {
+    prompt(options, afterPrompt)
+  }
 
-    mkdirp.sync(path.dirname(configPath))
-
-    try {
-      authData = require(configPath)
-    } catch (e) {}
+  function afterConfigRead (err, authData) {
+    if (err)
+      return callback(err)
 
     if (authData && authData.user && authData.token)
       return callback(null, authData)
+
+    prompt(options, afterPrompt)
   }
-  
-  prompt(options, afterPrompt)
 
   function afterPrompt (err, data) {
     if (err)
@@ -154,10 +156,10 @@ function auth (options, callback) {
 
       var tokenData = { user: data.user, token: token }
 
-      if (options.noSave) 
+      if (options.noSave)
         return callback(null, tokenData)
-      
-      fs.writeFile(configPath, JSON.stringify(tokenData), 'utf8', afterWrite)
+
+      config.write(tokenData, afterWrite)
 
       function afterWrite (err) {
         if (err)
