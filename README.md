@@ -9,7 +9,7 @@
 ```js
 const ghauth = require('ghauth')
     , authOptions = {
-           // ~/.config/awesome.json will store the token
+           // awesome.json within the user's config directory will store the token
           configName : 'awesome'
 
           // (optional) whatever GitHub auth scopes you require
@@ -56,7 +56,7 @@ $ node awesome.js
 
 The <b><code>options</code></b> argument can have the following properties:
 
-* `configName` (String, required unless `noSave` is `true`): the name of the config you are creating, this is required for saving a `<configName>.json` file into the users `~/.config` directory with the token created.
+* `configName` (String, required unless `noSave` is `true`): the name of the config you are creating, this is required for saving a `<configName>.json` file into the users config directory with the token created. Note that the **config directory is determined by [application-config](https://github.com/LinusU/node-application-config) and is OS-specific.**
 * `noSave` (Boolean, optional): if you don't want to persist the token to disk, set this to `true` but be aware that you will still be creating a saved token on GitHub that will need cleaning up if you are not persisting the token.
 * `authUrl` (String, optional):  defaults to `https://api.github.com/authorizations` for public GitHub but can be configured for private GitHub Enterprise endpoints.
 * `promptName` (String, optional): defaults to `'GitHub'`, change this if you are prompting for GHE credentials.
