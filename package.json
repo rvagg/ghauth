@@ -23,11 +23,10 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "application-config": "~0.1.1",
-    "bl": "~0.9.4",
+    "application-config": "~0.2.0",
+    "bl": "~1.0.0",
     "hyperquest": "~1.2.0",
-    "mkdirp": "~0.5.0",
-    "read": "~1.0.5",
-    "xtend": "~4.0.0"
+    "read": "~1.0.7",
+    "xtend": "~4.0.1"
   }
 }
