@@ -1,17 +1,15 @@
 const read       = require('read')
     , hyperquest = require('hyperquest')
     , bl         = require('bl')
-    , path       = require('path')
-    , fs         = require('fs')
-    , mkdirp     = require('mkdirp')
     , xtend      = require('xtend')
     , appCfg     = require('application-config')
 
-const defaultUA                  = 'Magic Node.js application that does magic things with ghauth'
-    , defaultScopes              = []
-    , defaultNote                = 'Node.js command-line app with ghauth'
-    , defaultAuthUrl             = 'https://api.github.com/authorizations'
-    , defaultPromptName          = 'GitHub'
+const defaultUA         = 'Magic Node.js application that does magic things with ghauth'
+    , defaultScopes     = []
+    , defaultNote       = 'Node.js command-line app with ghauth'
+    , defaultAuthUrl    = 'https://api.github.com/authorizations'
+    , defaultPromptName = 'GitHub'
+    , defaultAccessTokenUrl = 'https://github.com/settings/tokens'
     , defaultPasswordReplaceChar = '\u2714'
 
 
@@ -55,10 +53,45 @@ function createAuth (options, callback) {
 }
 
 
+function newlineify (len, str) {
+  var s = ''
+    , l = 0
+    , sa = str.split(' ')
+
+  while (sa.length) {
+    if (l + sa[0].length > len) {
+      s += '\n'
+      l = 0
+    } else {
+      s += ' '
+    }
+    s += sa[0]
+    l += sa[0].length
+    sa.splice(0, 1)
+  }
+
+  return s
+}
+
+
 function prompt (options, callback) {
-  var promptName          = options.promptName || defaultPromptName
-    , usernamePrompt      = 'Your ' + promptName + ' username:'
-    , passwordPrompt      = 'Your ' + promptName + ' password:'
+  var promptName     = options.promptName || defaultPromptName
+    , accessTokenUrl = options.accessTokenUrl || defaultAccessTokenUrl
+    , scopes         = options.scopes || defaultScopes
+    , usernamePrompt = options.usernamePrompt ||
+                       'Your ' + promptName + ' username:'
+    , passwordPrompt = options.passwordPrompt ||
+                       newlineify(80, 'You may either enter your ' +
+                          promptName +
+                          ' password or use a 40 character personal access token generated at ' +
+                          accessTokenUrl +
+                          (scopes.length
+                            ? ' with the following scopes: ' + scopes.join(', ')
+                            : ' (no scopes necessary)'
+                          )) +
+                       '\nYour ' + promptName + ' password:'
+    , tokenQuestionPrompt = options.tokenQuestionPrompt ||
+                            'This appears to be a personal access token, is that correct? [y/n] '
     , passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
     , user
     , pass
@@ -77,12 +110,36 @@ function prompt (options, callback) {
     read({ prompt: passwordPrompt, silent: true, replace: passwordReplaceChar }, afterPasswordRead)
   }
 
+  function promptTokenQuestion () {
+    read({ prompt: tokenQuestionPrompt }, afterTokenPrompt)
+
+    function afterTokenPrompt (err, _yorn) {
+      if (err)
+        return callback(err)
+
+      if (!(/^[yn]$/i).test(_yorn))
+        return promptTokenQuestion()
+
+      if (_yorn.toLowerCase() == 'y')
+        return callback(null, { user: user, token: pass, pass: null, otp: null })
+
+      attemptAuth()
+    }
+  }
+
   function afterPasswordRead (err, _pass) {
     if (err)
       return callback(err)
 
     pass = _pass
 
+    if (pass.length == 40)
+      return promptTokenQuestion()
+
+    attemptAuth()
+  }
+
+  function attemptAuth () {
     // Check for 2FA. This triggers an SMS if needed
     var reqOptions = {
             headers : {
@@ -103,7 +160,7 @@ function prompt (options, callback) {
     var otp = response.headers['x-github-otp']
 
     if (!otp || otp.indexOf('required') < 0)
-      return callback(null, { user: user, pass: pass, otp: null })
+      return callback(null, { user: user, pass: pass, token: null, otp: null })
 
     read({ prompt: 'Your GitHub OTP/2FA Code (optional):' }, afterOtpRead)
   }
@@ -150,7 +207,12 @@ function auth (options, callback) {
     if (err)
       return callback(err)
 
-    createAuth(xtend(options, data), afterCreateAuth)
+    data = xtend(options, data)
+
+    if (data.token)
+      return afterCreateAuth(null, data.token)
+
+    createAuth(data, afterCreateAuth)
 
     function afterCreateAuth (err, token) {
       if (err)
@@ -167,6 +229,8 @@ function auth (options, callback) {
       function afterWrite (err) {
         if (err)
           return callback(err)
+
+        process.stdout.write('Wrote access token to ' + config.filePath + '\n')
 
         callback(null, tokenData)
       }
