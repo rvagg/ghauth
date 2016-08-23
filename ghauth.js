@@ -159,6 +159,7 @@ function auth (options, callback) {
       if (options.noSave)
         return callback(null, tokenData)
 
+      process.umask(0o077);
       config.write(tokenData, afterWrite)
 
       function afterWrite (err) {
