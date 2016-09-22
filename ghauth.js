@@ -1,9 +1,6 @@
 const read       = require('read')
     , hyperquest = require('hyperquest')
     , bl         = require('bl')
-    , path       = require('path')
-    , fs         = require('fs')
-    , mkdirp     = require('mkdirp')
     , xtend      = require('xtend')
     , appCfg     = require('application-config')
 
