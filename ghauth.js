@@ -7,11 +7,12 @@ const read       = require('read')
     , xtend      = require('xtend')
     , appCfg     = require('application-config')
 
-const defaultUA         = 'Magic Node.js application that does magic things with ghauth'
-    , defaultScopes     = []
-    , defaultNote       = 'Node.js command-line app with ghauth'
-    , defaultAuthUrl    = 'https://api.github.com/authorizations'
-    , defaultPromptName = 'GitHub'
+const defaultUA                  = 'Magic Node.js application that does magic things with ghauth'
+    , defaultScopes              = []
+    , defaultNote                = 'Node.js command-line app with ghauth'
+    , defaultAuthUrl             = 'https://api.github.com/authorizations'
+    , defaultPromptName          = 'GitHub'
+    , defaultPasswordReplaceChar = '\u2714'
 
 
 function createAuth (options, callback) {
@@ -55,9 +56,10 @@ function createAuth (options, callback) {
 
 
 function prompt (options, callback) {
-  var promptName     = options.promptName || defaultPromptName
-    , usernamePrompt = 'Your ' + promptName + ' username:'
-    , passwordPrompt = 'Your ' + promptName + ' password:'
+  var promptName          = options.promptName || defaultPromptName
+    , usernamePrompt      = 'Your ' + promptName + ' username:'
+    , passwordPrompt      = 'Your ' + promptName + ' password:'
+    , passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
     , user
     , pass
 
@@ -72,7 +74,7 @@ function prompt (options, callback) {
 
     user = _user
 
-    read({ prompt: passwordPrompt, silent: true, replace: '\u2714' }, afterPasswordRead)
+    read({ prompt: passwordPrompt, silent: true, replace: passwordReplaceChar }, afterPasswordRead)
   }
 
   function afterPasswordRead (err, _pass) {

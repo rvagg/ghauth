@@ -63,6 +63,7 @@ The <b><code>options</code></b> argument can have the following properties:
 * `scopes` (Array, optional): defaults to `[]`, consult the GitHub [scopes](https://developer.github.com/v3/oauth/#scopes) documentation to see what you may need for your application.
 * `note` (String, optional):  defaults to `'Node.js command-line app with ghauth'`, override if you want to save a custom note with the GitHub token (user-visible).
 * `userAgent` (String, optional): defaults to `'Magic Node.js application that does magic things with ghauth'`, only used for requests to GitHub, override if you have a good reason to do so.
+* `passwordReplaceChar` (String, optional): defaults to `'✔'`, the character echoed when the user inputs their password. Can be set to `''` to silence the output.
 
 The <b><code>callback</code></b> will be called with either an `Error` object describing what went wrong, or a `data` object as the second argument if the auth creation (or cache read) was successful. The shape of the second argument is `{ user:String, token:String }`.
 
