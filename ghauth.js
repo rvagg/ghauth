@@ -1,62 +1,24 @@
-const read       = require('read')
-    , hyperquest = require('hyperquest')
-    , bl         = require('bl')
-    , xtend      = require('xtend')
-    , appCfg     = require('application-config')
+'use strict'
 
-const defaultUA         = 'Magic Node.js application that does magic things with ghauth'
-    , defaultScopes     = []
-    , defaultNote       = 'Node.js command-line app with ghauth'
-    , defaultAuthUrl    = 'https://api.github.com/authorizations'
-    , defaultPromptName = 'GitHub'
-    , defaultAccessTokenUrl = 'https://github.com/settings/tokens'
-    , defaultPasswordReplaceChar = '\u2714'
+const { promisify } = require('util')
+const read = promisify(require('read'))
+const hyperquest = require('hyperquest')
+const bl = require('bl')
+const appCfg = require('application-config')
 
+const defaultUA = 'Magic Node.js application that does magic things with ghauth'
+const defaultScopes = []
+const defaultNote = 'Node.js command-line app with ghauth'
+const defaultAuthUrl = 'https://api.github.com/authorizations'
+const defaultPromptName = 'GitHub'
+const defaultAccessTokenUrl = 'https://github.com/settings/tokens'
+const defaultPasswordReplaceChar = '\u2714'
 
-function createAuth (options, callback) {
-  var reqOptions  = {
-          headers : {
-              'X-GitHub-OTP' : options.otp       || null
-            , 'User-Agent'   : options.userAgent || defaultUA
-            , 'Content-type' : 'application/json'
-          }
-        , method  : 'post'
-        , auth    : options.user + ':' + options.pass
-      }
-    , authUrl     = options.authUrl || defaultAuthUrl
-    , currentDate = new Date().toJSON()
-    , req         = hyperquest(authUrl, reqOptions)
-
-  req.pipe(bl(afterCreateAuthResponse))
-
-  function afterCreateAuthResponse (err, data) {
-    if (err)
-      return callback(err)
-
-    data = JSON.parse(data.toString())
-
-    if (data.message) {
-      var error = new Error(data.message)
-      error.data = data
-      return callback(error)
-    }
-    if (!data.token)
-      return callback(new Error('No token from GitHub!'))
-
-    callback(null, data.token)
-  }
-
-  req.end(JSON.stringify({
-      scopes : options.scopes || defaultScopes
-    , note   : (options.note  || defaultNote) + ' (' + currentDate + ')'
-  }))
-}
-
-
+// split a string at roughly `len` characters, being careful of word boundaries
 function newlineify (len, str) {
-  var s = ''
-    , l = 0
-    , sa = str.split(' ')
+  let s = ''
+  let l = 0
+  const sa = str.split(' ')
 
   while (sa.length) {
     if (l + sa[0].length > len) {
@@ -73,170 +35,172 @@ function newlineify (len, str) {
   return s
 }
 
+async function createAuth (options) {
+  const reqOptions = {
+    headers: {
+      'X-GitHub-OTP': options.otp || null,
+      'User-Agent': options.userAgent || defaultUA,
+      'Content-type': 'application/json'
+    },
+    method: 'post',
+    auth: `${options.user}:${options.pass}`
+  }
+  const authUrl = options.authUrl || defaultAuthUrl
+  const currentDate = new Date().toJSON()
 
-function prompt (options, callback) {
-  var promptName     = options.promptName || defaultPromptName
-    , accessTokenUrl = options.accessTokenUrl || defaultAccessTokenUrl
-    , scopes         = options.scopes || defaultScopes
-    , usernamePrompt = options.usernamePrompt ||
-                       'Your ' + promptName + ' username:'
-    , passwordPrompt = options.passwordPrompt ||
-                       newlineify(80, 'You may either enter your ' +
-                          promptName +
-                          ' password or use a 40 character personal access token generated at ' +
-                          accessTokenUrl +
-                          (scopes.length
-                            ? ' with the following scopes: ' + scopes.join(', ')
-                            : ' (no scopes necessary)'
-                          )) +
-                       '\nYour ' + promptName + ' password:'
-    , tokenQuestionPrompt = options.tokenQuestionPrompt ||
-                            'This appears to be a personal access token, is that correct? [y/n] '
-    , passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
-    , user
-    , pass
+  const jsonData = await new Promise((resolve, reject) => {
+    const req = hyperquest(authUrl, reqOptions)
 
-  read({ prompt: usernamePrompt }, afterUsernameRead)
+    req.pipe(bl((err, data) => {
+      if (err) {
+        return reject(err)
+      }
+      resolve(data)
+    }))
 
-  function afterUsernameRead (err, _user) {
-    if (err)
-      return callback(err)
+    req.end(JSON.stringify({
+      scopes: options.scopes || defaultScopes,
+      note: `${(options.note || defaultNote)} (${currentDate})`
+    }))
+  })
 
-    if (_user === '')
-      return callback()
+  const data = JSON.parse(jsonData.toString())
 
-    user = _user
-
-    read({ prompt: passwordPrompt, silent: true, replace: passwordReplaceChar }, afterPasswordRead)
+  if (data.message) {
+    const error = new Error(data.message)
+    error.data = data
+    throw error
   }
 
-  function promptTokenQuestion () {
-    read({ prompt: tokenQuestionPrompt }, afterTokenPrompt)
-
-    function afterTokenPrompt (err, _yorn) {
-      if (err)
-        return callback(err)
-
-      if (!(/^[yn]$/i).test(_yorn))
-        return promptTokenQuestion()
-
-      if (_yorn.toLowerCase() == 'y')
-        return callback(null, { user: user, token: pass, pass: null, otp: null })
-
-      attemptAuth()
-    }
+  if (!data.token) {
+    throw new Error('No token from GitHub!')
   }
 
-  function afterPasswordRead (err, _pass) {
-    if (err)
-      return callback(err)
-
-    pass = _pass
-
-    if (pass.length == 40)
-      return promptTokenQuestion()
-
-    attemptAuth()
-  }
-
-  function attemptAuth () {
-    // Check for 2FA. This triggers an SMS if needed
-    var reqOptions = {
-            headers : {
-              'User-Agent' : options.userAgent || defaultUA
-            }
-          , method  : 'post'
-          , auth    : user + ':' + pass
-        }
-      , authUrl   = options.authUrl || defaultAuthUrl
-
-    hyperquest(authUrl, reqOptions, after2FaResponse).end();
-  }
-
-  function after2FaResponse (err, response) {
-    if (err)
-      return callback(err)
-
-    var otp = response.headers['x-github-otp']
-
-    if (!otp || otp.indexOf('required') < 0)
-      return callback(null, { user: user, pass: pass, token: null, otp: null })
-
-    read({ prompt: 'Your GitHub OTP/2FA Code (optional):' }, afterOtpRead)
-  }
-
-  function afterOtpRead (err, otp) {
-    if (err)
-      return callback(err)
-
-    callback(null, { user: user, pass: pass, otp: otp })
-  }
+  return data.token
 }
 
+// prompt the user for credentials
+async function prompt (options) {
+  const promptName = options.promptName || defaultPromptName
+  const accessTokenUrl = options.accessTokenUrl || defaultAccessTokenUrl
+  const scopes = options.scopes || defaultScopes
+  const usernamePrompt = options.usernamePrompt || `Your ${promptName} username:`
+  const tokenQuestionPrompt = options.tokenQuestionPrompt || 'This appears to be a personal access token, is that correct? [y/n] '
+  const passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
+  let passwordPrompt = options.passwordPrompt
 
-function auth (options, callback) {
-  if (typeof options != 'object')
+  if (!passwordPrompt) {
+    let patMsg = `You may either enter your ${promptName} password or use a 40 character personal access token generated at ${accessTokenUrl} ` +
+      (scopes.length ? `with the following scopes: ${scopes.join(', ')}` : '(no scopes necessary)')
+    patMsg = newlineify(80, patMsg)
+    passwordPrompt = `${patMsg}\nYour ${promptName} password:`
+  }
+
+  // username
+
+  const user = await read({ prompt: usernamePrompt })
+  if (user === '') {
+    return
+  }
+
+  // password || token
+
+  const pass = await read({ prompt: passwordPrompt, silent: true, replace: passwordReplaceChar })
+
+  if (pass.length === 40) {
+    // might be a token?
+    do {
+      const yorn = await read({ prompt: tokenQuestionPrompt })
+
+      if (yorn.toLowerCase() === 'y') {
+        // a token, apparently we have everything
+        return { user, token: pass, pass: null, otp: null }
+      }
+
+      if (yorn.toLowerCase() === 'n') {
+        break
+      }
+    } while (true)
+  }
+
+  // username + password
+  // check for 2FA, this may trigger an SMS if the user set it up that way
+  const reqOptions = {
+    headers: { 'User-Agent': options.userAgent || defaultUA },
+    method: 'post',
+    auth: user + ':' + pass
+  }
+  const authUrl = options.authUrl || defaultAuthUrl
+
+  const response = await new Promise((resolve, reject) => {
+    hyperquest(authUrl, reqOptions, (err, response) => {
+      if (err) {
+        return reject(err)
+      }
+      resolve(response)
+    }).end()
+  })
+
+  const otpHeader = response.headers['x-github-otp']
+
+  if (!otpHeader || otpHeader.indexOf('required') < 0) {
+    // no 2FA required
+    return { user, pass, token: null, otp: null }
+  }
+
+  // 2FA required
+  const otp = await read({ prompt: 'Your GitHub OTP/2FA Code (optional):' })
+
+  return { user, pass, otp }
+}
+
+async function auth (options) {
+  if (typeof options !== 'object') {
     throw new TypeError('ghauth requires an options argument')
+  }
 
-  if (typeof callback != 'function')
-    throw new TypeError('ghauth requires a callback argument')
-
-  var config
+  let config
 
   if (!options.noSave) {
-    if (typeof options.configName != 'string')
+    if (typeof options.configName !== 'string') {
       throw new TypeError('ghauth requires an options.configName property')
+    }
 
     config = appCfg(options.configName)
-    config.read(afterConfigRead)
-  } else {
-    prompt(options, afterPrompt)
-  }
-
-  function afterConfigRead (err, authData) {
-    if (err)
-      return callback(err)
-
-    if (authData && authData.user && authData.token)
-      return callback(null, authData)
-
-    prompt(options, afterPrompt)
-  }
-
-  function afterPrompt (err, data) {
-    if (err)
-      return callback(err)
-
-    data = xtend(options, data)
-
-    if (data.token)
-      return afterCreateAuth(null, data.token)
-
-    createAuth(data, afterCreateAuth)
-
-    function afterCreateAuth (err, token) {
-      if (err)
-        return callback(err)
-
-      var tokenData = { user: data.user, token: token }
-
-      if (options.noSave)
-        return callback(null, tokenData)
-
-      process.umask(0o077);
-      config.write(tokenData, afterWrite)
-
-      function afterWrite (err) {
-        if (err)
-          return callback(err)
-
-        process.stdout.write('Wrote access token to ' + config.filePath + '\n')
-
-        callback(null, tokenData)
-      }
+    const authData = await promisify(config.read.bind(config))()
+    if (authData && authData.user && authData.token) {
+      // we had it saved in a config file
+      return authData
     }
   }
+
+  let data = await prompt(options) // prompt the user for data
+  data = Object.assign(options, data)
+
+  let token = data.token
+
+  if (!token) {
+    token = await createAuth(data) // create a token from the GitHub API
+  }
+
+  const tokenData = { user: data.user, token }
+
+  if (options.noSave) {
+    return tokenData
+  }
+
+  process.umask(0o077)
+  await promisify(config.write.bind(config))(tokenData)
+
+  process.stdout.write(`Wrote access token to "${config.filePath}"\n`)
+
+  return tokenData
 }
 
+module.exports = function ghauth (options, callback) {
+  if (typeof callback !== 'function') {
+    return auth(options) // promise, it can be awaited
+  }
 
-module.exports = auth
+  auth(options).then((data) => callback(null, data)).catch(callback)
+}
