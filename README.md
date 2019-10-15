@@ -2,29 +2,35 @@
 
 **Create and load persistent GitHub authentication tokens for command-line apps**
 
-[![NPM](https://nodei.co/npm/ghauth.png?mini=true)](https://nodei.co/npm/ghauth/)
+[![NPM](https://nodei.co/npm/ghauth.svg)](https://nodei.co/npm/ghauth/)
 
 ## Example usage
 
 ```js
 const ghauth = require('ghauth')
-    , authOptions = {
-           // awesome.json within the user's config directory will store the token
-          configName : 'awesome'
+const authOptions = {
+  // awesome.json within the user's config directory will store the token
+  configName: 'awesome',
 
-          // (optional) whatever GitHub auth scopes you require
-        , scopes     : [ 'user' ]
+  // (optional) whatever GitHub auth scopes you require
+  scopes: [ 'user' ],
 
-          // (optional) saved with the token on GitHub
-        , note       : 'This token is for my awesome app'
+  // (optional) saved with the token on GitHub
+  note: 'This token is for my awesome app',
 
-          // (optional)
-        , userAgent  : 'My Awesome App'
-      }
+  // (optional)
+  userAgent: 'My Awesome App'
+}
 
-ghauth(authOptions, function (err, authData) {
-  console.log(authData)
-})
+const authData = await ghauth(authOptions)
+console.log(authData)
+
+// can also be run with a callback as:
+//
+// ghauth(authOptions, function (err, authData) {
+//  console.log(authData)
+// })
+
 ```
 
 Will run something like this:
@@ -41,7 +47,6 @@ GitHub OTP (optional): 669684
 ```
 
 Because the token is persisted, the next time you run it there will be no prompts:
-
 
 ```
 $ node awesome.js
@@ -67,13 +72,17 @@ The <b><code>options</code></b> argument can have the following properties:
 
 The <b><code>callback</code></b> will be called with either an `Error` object describing what went wrong, or a `data` object as the second argument if the auth creation (or cache read) was successful. The shape of the second argument is `{ user:String, token:String }`.
 
-# Contributing
+## Contributing
 
 ghauth is an **OPEN Open Source Project**. This means that:
 
 > Individuals making significant and valuable contributions are given commit-access to the project to contribute as they see fit. This project is more like an open wiki than a standard guarded open source project.
 
 See the [CONTRIBUTING.md](https://github.com/rvagg/ghauth/blob/master/CONTRIBUTING.md) file for more details.
+
+### A note about tests
+
+... there are no proper tests yet unfortunately. If you would like to contribute some that would be very helpful! We need to mock the GitHub API to properly test the functionality. Otherwise, testing of this library is done by its use downstream.
 
 ### Contributors
 
@@ -86,7 +95,7 @@ ghauth is made possible by the excellent work of the following contributors:
 </tbody></table>
 
 License &amp; copyright
--------------------
+-----------------------
 
 Copyright (c) 2014 ghauth contributors (listed above).
 
