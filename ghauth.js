@@ -167,7 +167,7 @@ async function auth (options) {
     }
 
     config = appCfg(options.configName)
-    const authData = await promisify(config.read.bind(config))()
+    const authData = await config.read()
     if (authData && authData.user && authData.token) {
       // we had it saved in a config file
       return authData
@@ -190,7 +190,7 @@ async function auth (options) {
   }
 
   process.umask(0o077)
-  await promisify(config.write.bind(config))(tokenData)
+  await config.write(tokenData)
 
   process.stdout.write(`Wrote access token to "${config.filePath}"\n`)
 
