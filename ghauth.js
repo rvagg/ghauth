@@ -2,13 +2,10 @@
 
 const { promisify } = require('util')
 const read = promisify(require('read'))
-const hyperquest = require('hyperquest')
-const bl = require('bl')
+const fetch = require('node-fetch')
 const appCfg = require('application-config')
 const querystring = require('querystring')
 const ora = require('ora')
-const logSymbols = require('log-symbols')
-const { Octokit } = require('@octokit/rest')
 
 const defaultUA = 'Magic Node.js application that does magic things with ghauth'
 const defaultScopes = []
@@ -16,6 +13,7 @@ const defaultDeviceCodeUrl = 'https://github.com/login/device/code'
 const defaultDeviceAuthUrl = 'https://github.com/login/device'
 const defaultAccessTokenUrl = 'https://github.com/login/oauth/access_token'
 const defaultOauthAppsBaseUrl = 'https://github.com/settings/connections/applications/'
+const defaultUserEndpoint = 'https://api.github.com/user'
 const defaultPatUrl = 'https://github.com/settings/tokens'
 const defaultPromptName = 'GitHub'
 const defaultPasswordReplaceChar = '\u2714'
@@ -46,21 +44,6 @@ function delay (s) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-async function hyperquestJson (url, query, reqOptions) {
-  const jsonData = await new Promise((resolve, reject) => {
-    const req = hyperquest(`${url}?${querystring.stringify(query)}`, reqOptions)
-    req.pipe(bl((err, data) => {
-      if (err) {
-        return reject(err)
-      }
-      resolve(data)
-    }))
-    req.end()
-  })
-
-  return JSON.parse(jsonData.toString())
-}
-
 // prompt the user for credentials
 async function prompt (options) {
   const promptName = options.promptName || defaultPromptName
@@ -68,9 +51,7 @@ async function prompt (options) {
   const accessTokenUrl = options.accessTokenUrl || defaultAccessTokenUrl
   const scopes = options.scopes || defaultScopes
   const passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
-  const spinner = ora()
-
-  let endDeviceFlow = false
+  const deviceFlowSpinner = ora()
 
   const defaultReqOptions = {
     headers: {
@@ -80,65 +61,61 @@ async function prompt (options) {
     method: 'post'
   }
 
-  // get token data from device flow, or interrupt for patFlow
-  let tokenData = await Promise.race([deviceCodeFlow(), patFlowIterrupt()])
+  // get token data from device flow, or interrupt to try PAT flow
+  let endDeviceFlow = false // race status indicator for deviceFlowInterrupt and deviceFlow
+  let interruptHandlerRef // listener reference for deviceFlowInterrupt
+  let tokenData = await Promise.race([deviceFlow(), deviceFlowInterrupt()])
+  process.stdin.off('keypress', interruptHandlerRef) // disable keypress listener when race finishes
+
+  // try the PAT flow if interrupted
   if (tokenData === false) tokenData = await patFlow()
+
+  if (!(tokenData || tokenData.token || tokenData.user)) throw new Error('Authentication failed.')
   return tokenData
 
+  // prompt for a personal access token with simple validation
   async function patFlow () {
     let patMsg = `Enter a 40 character personal access token generated at ${defaultPatUrl} ` +
       (scopes.length ? `with the following scopes: ${scopes.join(', ')}` : '(no scopes necessary)') + '\n' +
       'PAT: '
     patMsg = newlineify(80, patMsg)
     const pat = await read({ prompt: patMsg, silent: true, replace: passwordReplaceChar })
+    if (!pat) throw new TypeError('Empty personal access token received.')
+    if (pat.length !== 40) throw new TypeError('Personal access tokens must be 40 characters long')
     const tokenData = { token: pat }
-    // Add user login info
-    try {
-      const octokit = new Octokit({ auth: pat })
-      const user = await octokit.request('/user')
-      tokenData.user = user.data.login
-    } catch (e) { /* oh well */ }
 
-    return tokenData
+    return supplementUserData(tokenData)
   }
 
   // cancel deviceFlow if user presses enter``
-  function patFlowIterrupt () {
-    const p = new Promise((resolve, reject) => {
+  function deviceFlowInterrupt () {
+    return new Promise((resolve, reject) => {
       process.stdin.on('keypress', keyPressHandler)
 
+      interruptHandlerRef = keyPressHandler
       function keyPressHandler (letter, key) {
-        // clean up event listeners if deviceFlow is over, and user presses another key
-        if (endDeviceFlow) return process.stdin.off('keypress', keyPressHandler)
         if (key.name === 'return') {
           endDeviceFlow = true
-          spinner.stopAndPersist({ symbol: logSymbols.error, text: 'Device flow canceled' })
+          deviceFlowSpinner.warn('Device flow canceled.')
           resolve(false)
         }
       }
     })
-    return p
   }
 
-  async function deviceCodeFlow () {
-    const deviceCode = await requestDeviceCode()
+  // create a device flow session and return tokenData
+  async function deviceFlow () {
+    let currentInterval
+    let currentDeviceCode
+    let currentUserCode
+    let verificationUri
 
-    if (deviceCode.error) {
-      const error = new Error(deviceCode.error_description)
-      error.data = deviceCode
-      throw error
-    }
-
-    if (!(deviceCode.device_code || deviceCode.user_code)) {
-      const error = new Error('No device code from GitHub!')
-      error.data = deviceCode
-      throw error
-    }
+    await initializeNewDeviceFlow()
 
     const authPrompt = `  Authorize with ${promptName} by opening this URL in a browser:` +
                        '\n' +
                        '\n' +
-                       `    ${deviceCode.verification_uri || defaultDeviceAuthUrl}` +
+                       `    ${verificationUri}` +
                        '\n' +
                        '\n' +
                        '  and enter the following User Code:\n' +
@@ -146,49 +123,62 @@ async function prompt (options) {
 
     console.log(authPrompt)
 
-    spinner.start(`User Code: ${deviceCode.user_code}`)
+    deviceFlowSpinner.start(`User Code: ${currentUserCode}`)
 
-    const accessToken = await pollAccessToken(deviceCode)
+    const accessToken = await pollAccessToken()
     if (accessToken === false) return false // interrupted, don't return anything
 
     const tokenData = { token: accessToken.access_token, scope: accessToken.scope }
+    deviceFlowSpinner.succeed('Device flow complete.')
 
-    // Add user login info
-    try {
-      const octokit = new Octokit({ auth: accessToken.access_token })
-      const user = await octokit.request('/user')
-      tokenData.user = user.data.login
-    } catch (e) { /* oh well */ }
+    return supplementUserData(tokenData)
 
-    spinner.stopAndPersist({ symbol: logSymbols.success })
+    async function initializeNewDeviceFlow () {
+      const deviceCode = await requestDeviceCode()
 
-    return tokenData
-  }
-
-  async function pollAccessToken ({ device_code, user_code, verification_uri, expires_in, interval = 5 }) { /* eslint-disable-line camelcase */
-    let currentInterval = interval
-    let endDeviceFlowDetected = endDeviceFlow
-
-    while (!endDeviceFlowDetected) {
-      endDeviceFlowDetected = endDeviceFlow // update inner interrupt scope
-      await delay(currentInterval)
-      const data = await requestAccessToken(device_code)
-
-      if (data.access_token) return data
-      if (data.error === 'authorization_pending') continue
-      if (data.error === 'slow_down') currentInterval = data.interval
-      if (data.error === 'expired_token') {
-        // TODO: get a new device code and update the prompt
-        throw new Error(data.error_description || 'Device token expired, please try again.')
+      if (deviceCode.error) {
+        const error = new Error(deviceCode.error_description)
+        error.data = deviceCode
+        throw error
       }
-      if (data.error === 'unsupported_grant_type') throw new Error(data.error_description || 'Incorrect grant type.')
-      if (data.error === 'incorrect_client_credentials') throw new Error(data.error_description || 'Incorrect clientId.')
-      if (data.error === 'incorrect_device_code') throw new Error(data.error_description || 'Incorrect device code.')
-      if (data.error === 'access_denied') throw new Error(data.error_description || 'The authorized user canceled the access request.')
+
+      if (!(deviceCode.device_code || deviceCode.user_code)) {
+        const error = new Error('No device code from GitHub!')
+        error.data = deviceCode
+        throw error
+      }
+
+      currentInterval = deviceCode.interval || 5
+      verificationUri = deviceCode.verification_uri || defaultDeviceAuthUrl
+      currentDeviceCode = deviceCode.device_code
+      currentUserCode = deviceCode.user_code
     }
 
-    // interrupted
-    return false
+    async function pollAccessToken () {
+      let endDeviceFlowDetected
+
+      while (!endDeviceFlowDetected) {
+        endDeviceFlowDetected = endDeviceFlow // update inner interrupt scope
+        await delay(currentInterval)
+        const data = await requestAccessToken(currentDeviceCode)
+
+        if (data.access_token) return data
+        if (data.error === 'authorization_pending') continue
+        if (data.error === 'slow_down') currentInterval = data.interval
+        if (data.error === 'expired_token') {
+          deviceFlowSpinner.text('User Code: Updating...')
+          await initializeNewDeviceFlow()
+          deviceFlowSpinner.text(`User Code: ${currentUserCode}`)
+        }
+        if (data.error === 'unsupported_grant_type') throw new Error(data.error_description || 'Incorrect grant type.')
+        if (data.error === 'incorrect_client_credentials') throw new Error(data.error_description || 'Incorrect clientId.')
+        if (data.error === 'incorrect_device_code') throw new Error(data.error_description || 'Incorrect device code.')
+        if (data.error === 'access_denied') throw new Error(data.error_description || 'The authorized user canceled the access request.')
+      }
+
+      // interrupted
+      return false
+    }
   }
 
   function requestAccessToken (deviceCode) {
@@ -198,7 +188,7 @@ async function prompt (options) {
       grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
     }
 
-    return hyperquestJson(accessTokenUrl, query, defaultReqOptions)
+    return fetch(`${accessTokenUrl}?${querystring.stringify(query)}`, defaultReqOptions).then(req => req.json())
   }
 
   function requestDeviceCode () {
@@ -207,7 +197,38 @@ async function prompt (options) {
     }
     if (scopes.length) query.scope = scopes.join(' ')
 
-    return hyperquestJson(deviceCodeUrl, query, defaultReqOptions)
+    return fetch(`${deviceCodeUrl}?${querystring.stringify(query)}`, defaultReqOptions).then(req => req.json())
+  }
+
+  function requestUser (token) {
+    const reqOptions = {
+      headers: {
+        'User-Agent': options.userAgent || defaultUA,
+        Accept: 'application/vnd.github.v3+json',
+        Authorization: `token ${token}`
+      },
+      method: 'get'
+    }
+
+    return fetch(defaultUserEndpoint, reqOptions).then(req => req.json())
+  }
+
+  async function supplementUserData (tokenData) {
+    // Get user login info
+    const userSpinner = ora().start('Retrieving user...')
+    try {
+      const user = await requestUser(tokenData.token)
+      if (!user || !user.login) {
+        userSpinner.fail('Failed to retrieve user info.')
+      } else {
+        userSpinner.succeed(`Authorized for ${user.login}`)
+      }
+      tokenData.user = user.login
+    } catch (e) {
+      userSpinner.fail(`Failed to retrieve user info: ${e.message}`)
+    }
+
+    return tokenData
   }
 }
 
