@@ -1,13 +1,13 @@
 const ghauth = require('./')
 const authOptions = {
+  // provide a clientId from a Github oAuth application registration
+  clientId: '123456',
+
   // ~/.config/awesome.json will store the token
   configName: 'awesome',
 
   // (optional) whatever GitHub auth scopes you require
   scopes: ['user'],
-
-  // (optional) saved with the token on GitHub
-  note: 'This token is for my awesome app',
 
   // (optional)
   userAgent: 'My Awesome App'
