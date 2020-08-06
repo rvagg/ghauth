@@ -146,7 +146,21 @@ async function prompt (options) {
       const deviceCode = await requestDeviceCode()
 
       if (deviceCode.error) {
-        const error = new Error(deviceCode.error_description)
+        let error
+        switch (deviceCode.error) {
+          case 'Not Found': {
+            error = new Error('Not found: is the clientId correct?')
+            break
+          }
+          case 'unauthorized_client': {
+            error = new Error(`${deviceCode.error_description} Did you enable 'Device authorization flow' for your oAuth application?`)
+            break
+          }
+          default: {
+            error = new Error(deviceCode.error_description || deviceCode.error)
+            break
+          }
+        }
         error.data = deviceCode
         throw error
       }
