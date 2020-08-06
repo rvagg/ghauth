@@ -12,7 +12,7 @@ const defaultScopes = []
 const defaultDeviceCodeUrl = 'https://github.com/login/device/code'
 const defaultDeviceAuthUrl = 'https://github.com/login/device'
 const defaultAccessTokenUrl = 'https://github.com/login/oauth/access_token'
-const defaultOauthAppsBaseUrl = 'https://github.com/settings/connections/applications/'
+const defaultOauthAppsBaseUrl = 'https://github.com/settings/connections/applications'
 const defaultUserEndpoint = 'https://api.github.com/user'
 const defaultPatUrl = 'https://github.com/settings/tokens'
 const defaultPromptName = 'GitHub'
@@ -49,6 +49,7 @@ async function prompt (options) {
   const promptName = options.promptName || defaultPromptName
   const deviceCodeUrl = options.deviceCodeUrl || defaultDeviceCodeUrl
   const accessTokenUrl = options.accessTokenUrl || defaultAccessTokenUrl
+  const oauthAppsBaseUrl = options.oauthAppsBaseUrl || defaultOauthAppsBaseUrl
   const scopes = options.scopes || defaultScopes
   const passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
   const deviceFlowSpinner = ora()
@@ -129,7 +130,7 @@ async function prompt (options) {
     if (accessToken === false) return false // interrupted, don't return anything
 
     const tokenData = { token: accessToken.access_token, scope: accessToken.scope }
-    deviceFlowSpinner.succeed('Device flow complete.')
+    deviceFlowSpinner.succeed(`Device flow complete.  Manage at ${oauthAppsBaseUrl}/${options.clientId}`)
 
     return supplementUserData(tokenData)
 
