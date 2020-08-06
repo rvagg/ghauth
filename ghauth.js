@@ -9,12 +9,7 @@ const ora = require('ora')
 
 const defaultUA = 'Magic Node.js application that does magic things with ghauth'
 const defaultScopes = []
-const defaultDeviceCodeUrl = 'https://github.com/login/device/code'
-const defaultDeviceAuthUrl = 'https://github.com/login/device'
-const defaultAccessTokenUrl = 'https://github.com/login/oauth/access_token'
-const defaultOauthAppsBaseUrl = 'https://github.com/settings/connections/applications'
-const defaultUserEndpoint = 'https://api.github.com/user'
-const defaultPatUrl = 'https://github.com/settings/tokens'
+const defaultGithubHost = 'github.com'
 const defaultPromptName = 'GitHub'
 const defaultPasswordReplaceChar = '\u2714'
 
@@ -39,7 +34,7 @@ function newlineify (len, str) {
   return s
 }
 
-function delay (s) {
+function sleep (s) {
   const ms = s * 1000
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -47,12 +42,15 @@ function delay (s) {
 // prompt the user for credentials
 async function prompt (options) {
   const promptName = options.promptName || defaultPromptName
-  const deviceCodeUrl = options.deviceCodeUrl || defaultDeviceCodeUrl
-  const accessTokenUrl = options.accessTokenUrl || defaultAccessTokenUrl
-  const oauthAppsBaseUrl = options.oauthAppsBaseUrl || defaultOauthAppsBaseUrl
   const scopes = options.scopes || defaultScopes
   const passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
-  const deviceFlowSpinner = ora()
+  const githubHost = options.githubHost || defaultGithubHost
+  const deviceCodeUrl = `https://${githubHost}/login/device/code`
+  const fallbackDeviceAuthUrl = `https://${githubHost}/login/device`
+  const accessTokenUrl = `https://${githubHost}/login/oauth/access_token`
+  const oauthAppsBaseUrl = `https://${githubHost}/settings/connections/applications`
+  const userEndpointUrl = `https://api.${githubHost}/user`
+  const patUrl = `https://${githubHost}/settings/tokens`
 
   const defaultReqOptions = {
     headers: {
@@ -63,20 +61,31 @@ async function prompt (options) {
   }
 
   // get token data from device flow, or interrupt to try PAT flow
+  const deviceFlowSpinner = ora()
   let endDeviceFlow = false // race status indicator for deviceFlowInterrupt and deviceFlow
   let interruptHandlerRef // listener reference for deviceFlowInterrupt
-  let tokenData = await Promise.race([deviceFlow(), deviceFlowInterrupt()])
-  process.stdin.off('keypress', interruptHandlerRef) // disable keypress listener when race finishes
+  let tokenData
 
-  // try the PAT flow if interrupted
-  if (tokenData === false) tokenData = await patFlow()
+  if (!options.noDeviceFlow) {
+    tokenData = await Promise.race([deviceFlow(), deviceFlowInterrupt()])
+    process.stdin.off('keypress', interruptHandlerRef) // disable keypress listener when race finishes
+
+    // try the PAT flow if interrupted
+    if (tokenData === false) {
+      deviceFlowSpinner.warn('Device flow canceled.')
+      tokenData = await patFlow()
+    }
+  } else {
+    console.log(`Personal access token auth for ${promptName}.`)
+    tokenData = await patFlow()
+  }
 
   if (!(tokenData || tokenData.token || tokenData.user)) throw new Error('Authentication failed.')
   return tokenData
 
   // prompt for a personal access token with simple validation
   async function patFlow () {
-    let patMsg = `Enter a 40 character personal access token generated at ${defaultPatUrl} ` +
+    let patMsg = `Enter a 40 character personal access token generated at ${patUrl} ` +
       (scopes.length ? `with the following scopes: ${scopes.join(', ')}` : '(no scopes necessary)') + '\n' +
       'PAT: '
     patMsg = newlineify(80, patMsg)
@@ -97,7 +106,6 @@ async function prompt (options) {
       function keyPressHandler (letter, key) {
         if (key.name === 'return') {
           endDeviceFlow = true
-          deviceFlowSpinner.warn('Device flow canceled.')
           resolve(false)
         }
       }
@@ -150,7 +158,7 @@ async function prompt (options) {
       }
 
       currentInterval = deviceCode.interval || 5
-      verificationUri = deviceCode.verification_uri || defaultDeviceAuthUrl
+      verificationUri = deviceCode.verification_uri || fallbackDeviceAuthUrl
       currentDeviceCode = deviceCode.device_code
       currentUserCode = deviceCode.user_code
     }
@@ -159,8 +167,7 @@ async function prompt (options) {
       let endDeviceFlowDetected
 
       while (!endDeviceFlowDetected) {
-        endDeviceFlowDetected = endDeviceFlow // update inner interrupt scope
-        await delay(currentInterval)
+        await sleep(currentInterval)
         const data = await requestAccessToken(currentDeviceCode)
 
         if (data.access_token) return data
@@ -175,6 +182,7 @@ async function prompt (options) {
         if (data.error === 'incorrect_client_credentials') throw new Error(data.error_description || 'Incorrect clientId.')
         if (data.error === 'incorrect_device_code') throw new Error(data.error_description || 'Incorrect device code.')
         if (data.error === 'access_denied') throw new Error(data.error_description || 'The authorized user canceled the access request.')
+        endDeviceFlowDetected = endDeviceFlow // update inner interrupt scope
       }
 
       // interrupted
@@ -211,7 +219,7 @@ async function prompt (options) {
       method: 'get'
     }
 
-    return fetch(defaultUserEndpoint, reqOptions).then(req => req.json())
+    return fetch(userEndpointUrl, reqOptions).then(req => req.json())
   }
 
   async function supplementUserData (tokenData) {
@@ -253,7 +261,7 @@ async function auth (options) {
     }
   }
 
-  if (typeof options.clientId !== 'string') {
+  if (typeof options.clientId !== 'string' && !options.noDeviceFlow) {
     throw new TypeError('ghauth requires an options.clientId property')
   }
 
