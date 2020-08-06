@@ -5,13 +5,19 @@ const read = promisify(require('read'))
 const hyperquest = require('hyperquest')
 const bl = require('bl')
 const appCfg = require('application-config')
+const querystring = require('querystring')
+const ora = require('ora')
+const logSymbols = require('log-symbols')
+const { Octokit } = require('@octokit/rest')
 
 const defaultUA = 'Magic Node.js application that does magic things with ghauth'
 const defaultScopes = []
-const defaultNote = 'Node.js command-line app with ghauth'
-const defaultAuthUrl = 'https://api.github.com/authorizations'
+const defaultDeviceCodeUrl = 'https://github.com/login/device/code'
+const defaultDeviceAuthUrl = 'https://github.com/login/device'
+const defaultAccessTokenUrl = 'https://github.com/login/oauth/access_token'
+const defaultOauthAppsBaseUrl = 'https://github.com/settings/connections/applications/'
+const defaultPatUrl = 'https://github.com/settings/tokens'
 const defaultPromptName = 'GitHub'
-const defaultAccessTokenUrl = 'https://github.com/settings/tokens'
 const defaultPasswordReplaceChar = '\u2714'
 
 // split a string at roughly `len` characters, being careful of word boundaries
@@ -35,123 +41,174 @@ function newlineify (len, str) {
   return s
 }
 
-async function createAuth (options) {
-  const reqOptions = {
-    headers: {
-      'X-GitHub-OTP': options.otp || null,
-      'User-Agent': options.userAgent || defaultUA,
-      'Content-type': 'application/json'
-    },
-    method: 'post',
-    auth: `${options.user}:${options.pass}`
-  }
-  const authUrl = options.authUrl || defaultAuthUrl
-  const currentDate = new Date().toJSON()
+function delay (s) {
+  const ms = s * 1000
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
 
+async function hyperquestJson (url, query, reqOptions) {
   const jsonData = await new Promise((resolve, reject) => {
-    const req = hyperquest(authUrl, reqOptions)
-
+    const req = hyperquest(`${url}?${querystring.stringify(query)}`, reqOptions)
     req.pipe(bl((err, data) => {
       if (err) {
         return reject(err)
       }
       resolve(data)
     }))
-
-    req.end(JSON.stringify({
-      scopes: options.scopes || defaultScopes,
-      note: `${(options.note || defaultNote)} (${currentDate})`
-    }))
+    req.end()
   })
 
-  const data = JSON.parse(jsonData.toString())
-
-  if (data.message) {
-    const error = new Error(data.message)
-    error.data = data
-    throw error
-  }
-
-  if (!data.token) {
-    throw new Error('No token from GitHub!')
-  }
-
-  return data.token
+  return JSON.parse(jsonData.toString())
 }
 
 // prompt the user for credentials
 async function prompt (options) {
   const promptName = options.promptName || defaultPromptName
+  const deviceCodeUrl = options.deviceCodeUrl || defaultDeviceCodeUrl
   const accessTokenUrl = options.accessTokenUrl || defaultAccessTokenUrl
   const scopes = options.scopes || defaultScopes
-  const usernamePrompt = options.usernamePrompt || `Your ${promptName} username:`
-  const tokenQuestionPrompt = options.tokenQuestionPrompt || 'This appears to be a personal access token, is that correct? [y/n] '
   const passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
-  let passwordPrompt = options.passwordPrompt
+  const spinner = ora()
 
-  if (!passwordPrompt) {
-    let patMsg = `You may either enter your ${promptName} password or use a 40 character personal access token generated at ${accessTokenUrl} ` +
-      (scopes.length ? `with the following scopes: ${scopes.join(', ')}` : '(no scopes necessary)')
+  let endDeviceFlow = false
+
+  const defaultReqOptions = {
+    headers: {
+      'User-Agent': options.userAgent || defaultUA,
+      Accept: 'application/json'
+    },
+    method: 'post'
+  }
+
+  // get token data from device flow, or interrupt for patFlow
+  let tokenData = await Promise.race([deviceCodeFlow(), patFlowIterrupt()])
+  if (tokenData === false) tokenData = await patFlow()
+  return tokenData
+
+  async function patFlow () {
+    let patMsg = `Enter a 40 character personal access token generated at ${defaultPatUrl} ` +
+      (scopes.length ? `with the following scopes: ${scopes.join(', ')}` : '(no scopes necessary)') + '\n' +
+      'PAT: '
     patMsg = newlineify(80, patMsg)
-    passwordPrompt = `${patMsg}\nYour ${promptName} password:`
+    const pat = await read({ prompt: patMsg, silent: true, replace: passwordReplaceChar })
+    const tokenData = { token: pat }
+    // Add user login info
+    try {
+      const octokit = new Octokit({ auth: pat })
+      const user = await octokit.request('/user')
+      tokenData.user = user.data.login
+    } catch (e) { /* oh well */ }
+
+    return tokenData
   }
 
-  // username
+  // cancel deviceFlow if user presses enter``
+  function patFlowIterrupt () {
+    const p = new Promise((resolve, reject) => {
+      process.stdin.on('keypress', keyPressHandler)
 
-  const user = await read({ prompt: usernamePrompt })
-  if (user === '') {
-    return
-  }
-
-  // password || token
-
-  const pass = await read({ prompt: passwordPrompt, silent: true, replace: passwordReplaceChar })
-
-  if (pass.length === 40) {
-    // might be a token?
-    do {
-      const yorn = await read({ prompt: tokenQuestionPrompt })
-
-      if (yorn.toLowerCase() === 'y') {
-        // a token, apparently we have everything
-        return { user, token: pass, pass: null, otp: null }
+      function keyPressHandler (letter, key) {
+        // clean up event listeners if deviceFlow is over, and user presses another key
+        if (endDeviceFlow) return process.stdin.off('keypress', keyPressHandler)
+        if (key.name === 'return') {
+          endDeviceFlow = true
+          spinner.stopAndPersist({ symbol: logSymbols.error, text: 'Device flow canceled' })
+          resolve(false)
+        }
       }
+    })
+    return p
+  }
 
-      if (yorn.toLowerCase() === 'n') {
-        break
+  async function deviceCodeFlow () {
+    const deviceCode = await requestDeviceCode()
+
+    if (deviceCode.error) {
+      const error = new Error(deviceCode.error_description)
+      error.data = deviceCode
+      throw error
+    }
+
+    if (!(deviceCode.device_code || deviceCode.user_code)) {
+      const error = new Error('No device code from GitHub!')
+      error.data = deviceCode
+      throw error
+    }
+
+    const authPrompt = `  Authorize with ${promptName} by opening this URL in a browser:` +
+                       '\n' +
+                       '\n' +
+                       `    ${deviceCode.verification_uri || defaultDeviceAuthUrl}` +
+                       '\n' +
+                       '\n' +
+                       '  and enter the following User Code:\n' +
+                       '  (or press ⏎ to enter a personal access token)\n'
+
+    console.log(authPrompt)
+
+    spinner.start(`User Code: ${deviceCode.user_code}`)
+
+    const accessToken = await pollAccessToken(deviceCode)
+    if (accessToken === false) return false // interrupted, don't return anything
+
+    const tokenData = { token: accessToken.access_token, scope: accessToken.scope }
+
+    // Add user login info
+    try {
+      const octokit = new Octokit({ auth: accessToken.access_token })
+      const user = await octokit.request('/user')
+      tokenData.user = user.data.login
+    } catch (e) { /* oh well */ }
+
+    spinner.stopAndPersist({ symbol: logSymbols.success })
+
+    return tokenData
+  }
+
+  async function pollAccessToken ({ device_code, user_code, verification_uri, expires_in, interval = 5 }) { /* eslint-disable-line camelcase */
+    let currentInterval = interval
+    let endDeviceFlowDetected = endDeviceFlow
+
+    while (!endDeviceFlowDetected) {
+      endDeviceFlowDetected = endDeviceFlow // update inner interrupt scope
+      await delay(currentInterval)
+      const data = await requestAccessToken(device_code)
+
+      if (data.access_token) return data
+      if (data.error === 'authorization_pending') continue
+      if (data.error === 'slow_down') currentInterval = data.interval
+      if (data.error === 'expired_token') {
+        // TODO: get a new device code and update the prompt
+        throw new Error(data.error_description || 'Device token expired, please try again.')
       }
-    } while (true)
+      if (data.error === 'unsupported_grant_type') throw new Error(data.error_description || 'Incorrect grant type.')
+      if (data.error === 'incorrect_client_credentials') throw new Error(data.error_description || 'Incorrect clientId.')
+      if (data.error === 'incorrect_device_code') throw new Error(data.error_description || 'Incorrect device code.')
+      if (data.error === 'access_denied') throw new Error(data.error_description || 'The authorized user canceled the access request.')
+    }
+
+    // interrupted
+    return false
   }
 
-  // username + password
-  // check for 2FA, this may trigger an SMS if the user set it up that way
-  const reqOptions = {
-    headers: { 'User-Agent': options.userAgent || defaultUA },
-    method: 'post',
-    auth: user + ':' + pass
-  }
-  const authUrl = options.authUrl || defaultAuthUrl
+  function requestAccessToken (deviceCode) {
+    const query = {
+      client_id: options.clientId,
+      device_code: deviceCode,
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+    }
 
-  const response = await new Promise((resolve, reject) => {
-    hyperquest(authUrl, reqOptions, (err, response) => {
-      if (err) {
-        return reject(err)
-      }
-      resolve(response)
-    }).end()
-  })
-
-  const otpHeader = response.headers['x-github-otp']
-
-  if (!otpHeader || otpHeader.indexOf('required') < 0) {
-    // no 2FA required
-    return { user, pass, token: null, otp: null }
+    return hyperquestJson(accessTokenUrl, query, defaultReqOptions)
   }
 
-  // 2FA required
-  const otp = await read({ prompt: 'Your GitHub OTP/2FA Code (optional):' })
+  function requestDeviceCode () {
+    const query = {
+      client_id: options.clientId
+    }
+    if (scopes.length) query.scope = scopes.join(' ')
 
-  return { user, pass, otp }
+    return hyperquestJson(deviceCodeUrl, query, defaultReqOptions)
+  }
 }
 
 async function auth (options) {
@@ -174,16 +231,11 @@ async function auth (options) {
     }
   }
 
-  let data = await prompt(options) // prompt the user for data
-  data = Object.assign(options, data)
-
-  let token = data.token
-
-  if (!token) {
-    token = await createAuth(data) // create a token from the GitHub API
+  if (typeof options.clientId !== 'string') {
+    throw new TypeError('ghauth requires an options.clientId property')
   }
 
-  const tokenData = { user: data.user, token }
+  const tokenData = await prompt(options) // prompt the user for data
 
   if (options.noSave) {
     return tokenData
