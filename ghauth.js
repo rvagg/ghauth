@@ -50,7 +50,8 @@ async function prompt (options) {
   const fallbackDeviceAuthUrl = `https://${githubHost}/login/device`
   const accessTokenUrl = `https://${githubHost}/login/oauth/access_token`
   const oauthAppsBaseUrl = `https://${githubHost}/settings/connections/applications`
-  const userEndpointUrl = isEnterprise ? `https://api.${githubHost}/user` : `https://${githubHost}/api/v3`
+  const apiUrl = isEnterprise ? `https://api.${githubHost}` : `https://${githubHost}/api/v3`
+  const userEndpointUrl = `${apiUrl}/user`
   const patUrl = `https://${githubHost}/settings/tokens`
 
   const defaultReqOptions = {
