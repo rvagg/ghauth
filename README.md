@@ -6,7 +6,7 @@
 
 **Important**
 
-Github deprecated their basic username/password auth api and have [scheduled to sunset it November 13, 2020][depreciated].  `ghauth` v5.0.0+ supports the new [device auth flow][df] but requires some implementation changes and application registration with Github. Review the new API docs and see [Setup][#setup] for a simple upgrade guide between v4 and v5.
+Github deprecated their basic username/password auth api and have [scheduled to sunset it November 13, 2020][deprecated].  `ghauth` v5.0.0+ supports the new [device auth flow][df] but requires some implementation changes and application registration with Github. Review the new API docs and see [Setup][#setup] for a simple upgrade guide between v4 and v5.
 
 ## Example usage
 
