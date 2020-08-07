@@ -45,11 +45,12 @@ async function prompt (options) {
   const scopes = options.scopes || defaultScopes
   const passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
   const githubHost = options.githubHost || defaultGithubHost
+  const isEnterprise = githubHost !== defaultGithubHost
   const deviceCodeUrl = `https://${githubHost}/login/device/code`
   const fallbackDeviceAuthUrl = `https://${githubHost}/login/device`
   const accessTokenUrl = `https://${githubHost}/login/oauth/access_token`
   const oauthAppsBaseUrl = `https://${githubHost}/settings/connections/applications`
-  const userEndpointUrl = `https://api.${githubHost}/user`
+  const userEndpointUrl = isEnterprise ? `https://api.${githubHost}/user` : `https://${githubHost}/api/v3`
   const patUrl = `https://${githubHost}/settings/tokens`
 
   const defaultReqOptions = {
