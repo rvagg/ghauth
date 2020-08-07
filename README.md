@@ -135,4 +135,4 @@ Copyright (c) 2014 ghauth contributors (listed above).
 ghauth is licensed under the MIT license. All rights not explicitly granted in the MIT license are reserved. See the included LICENSE.md file for more details.
 
 [df]: https://docs.github.com/en/developers/apps/authorizing-oauth-apps#device-flow
-[depreciated]: https://developer.github.com/changes/2020-02-14-deprecating-oauth-auth-endpoint/
+[deprecated]: https://developer.github.com/changes/2020-02-14-deprecating-oauth-auth-endpoint/
