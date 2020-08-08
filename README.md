@@ -106,7 +106,8 @@ Github requires a `clientId` from a Github oAuth Application in order to complet
   - [Personal Account oAuth apps page](https://github.com/settings/developers)
   - `https://github.com/organizations/${org_name}/settings/applications`: Organization oAuth settings page.
 2. Provide an application name, homepage URL and callback URL.  You can make these two URLs the same, since your app will not be using a callback URL with the device flow.
-3. Go to your oAuth application's settings page and select Beta Features.
+3. Go to your oAuth application's settings page and take note of the "Client ID" (this will get passed as `clientId` to `ghauth`).  You can ignore the "Client Secret" value.  It is not used.
+4. Select Beta Features in the settings side bar.
 4. Enable Device authorization flow.
 
 - [Device flow docs][df]
