@@ -102,7 +102,7 @@ The <b><code>callback</code></b> will be called with either an `Error` object de
 
 Github requires a `clientId` from a Github oAuth Application in order to complete oAuth device flow authentication.
 
-1. Register an "oAuth App" with Github:
+1. Register an "oAuth Application" with Github:
   - [Personal Account oAuth apps page](https://github.com/settings/developers)
   - `https://github.com/organizations/${org_name}/settings/applications`: Organization oAuth settings page.
 2. Provide an application name, homepage URL and callback URL.  You can make these two URLs the same, since your app will not be using a callback URL with the device flow.
@@ -114,8 +114,8 @@ Github requires a `clientId` from a Github oAuth Application in order to complet
 ### v4 to v5 Upgrade guide
 
 - A `options.clientId` is required to use device flow.  Set up an oAuth application to get a `clientId`.
-- the `options.authUrl` now only applies to GitHub enterprise authentication which still only supports basic auth.
-- `options.note` is only used for GHE basic auth.
+- the `options.authUrl` now only applies to GitHub enterprise authentication which still only supports basic auth.  Only pass this if you intend for GitHub Enterpise authentication.
+- `options.note` is only used for GHE basic auth now.  Your oAuth application details serve the purpose of token note.
 - `options.noDeviceFlow` is available to skip the device flow if you are unable to create a `clientId` for some reason, and wish to skip to the personal access token input prompt immediately.
 
 ## Contributing
