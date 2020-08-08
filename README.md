@@ -66,6 +66,19 @@ $ node awesome.js
   token: '24d5dee258c64aef38a66c0c5eca459c379901c2' }
 ```
 
+When `authUrl` is configured for a Github enterprise endpoint, it will look more like this:
+
+```console
+$ node awesome.js
+
+GitHub username: rvagg
+GitHub password: ✔✔✔✔✔✔✔✔✔✔✔✔
+GitHub OTP (optional): 669684
+
+{ user: 'rvagg',
+  token: '24d5dee258c64aef38a66c0c5eca459c379901c2' }
+```
+
 ## API
 
 <b><code>ghauth(options, callback)</code></b>
@@ -75,12 +88,13 @@ The <b><code>options</code></b> argument can have the following properties:
 * `clientId` (String, required unless `noDeviceFlow` is `true`): the clientId of your oAuth application on Github.  See [setup](#setup) below for more info on creating a Github oAuth application.
 * `configName` (String, required unless `noSave` is `true`): the name of the config you are creating, this is required for saving a `<configName>.json` file into the users config directory with the token created. Note that the **config directory is determined by [application-config](https://github.com/LinusU/node-application-config) and is OS-specific.**
 * `noSave` (Boolean, optional): if you don't want to persist the token to disk, set this to `true` but be aware that you will still be creating a saved token on GitHub that will need cleaning up if you are not persisting the token.
-* `githubHost` (String, optional):  defaults to `github.com` for public GitHub but can be configured for private GitHub Enterprise endpoints.
-* `promptName` (String, optional): defaults to `'GitHub'`, change this if you are prompting for GHE credentials.
+* `authUrl` (String, optional):  defaults to `null` since public Github no longer supports basic auth.  Setting `authUrl` will allow you to perform basic authentication with a Github Enterprise instance.  This setting is ignored if the `host` of the url is `api.github.com` or `github.com`.
+* `promptName` (String, optional): defaults to `'GitHub Enterprise'`, change this if you are prompting for GHE credentials.  Not used for public GH authentication.
 * `scopes` (Array, optional): defaults to `[]`, consult the GitHub [scopes](https://developer.github.com/v3/oauth/#scopes) documentation to see what you may need for your application.
+* `note` (String, optional):  defaults to `'Node.js command-line app with ghauth'`, override if you want to save a custom note with the GitHub token (user-visible).  Only used with GHE basic authentication.
 * `userAgent` (String, optional): defaults to `'Magic Node.js application that does magic things with ghauth'`, only used for requests to GitHub, override if you have a good reason to do so.
 * `passwordReplaceChar` (String, optional): defaults to `'✔'`, the character echoed when the user inputs their password. Can be set to `''` to silence the output.
-* `noDeviceFlow` (Boolean, optional): disable the Device Flow authentication method.  This will prompt users for a personal access token immediately if no existing configuration is found.
+* `noDeviceFlow` (Boolean, optional): disable the Device Flow authentication method.  This will prompt users for a personal access token immediately if no existing configuration is found.  Only applies when `authUrl` is not used.
 
 The <b><code>callback</code></b> will be called with either an `Error` object describing what went wrong, or a `data` object as the second argument if the auth creation (or cache read) was successful. The shape of the second argument is `{ user:String, token:String }`.
 
@@ -100,8 +114,8 @@ Github requires a `clientId` from a Github oAuth Application in order to complet
 ### v4 to v5 Upgrade guide
 
 - A `options.clientId` is required to use device flow.  Set up an oAuth application to get a `clientId`.
-- the `options.authUrl` (default: `https://api.github.com/authorizations`) is removed in favor of `options.githubHost` (default `github.com`).
-- `options.note` is no longer used for anything.
+- the `options.authUrl` now only applies to GitHub enterprise authentication which still only supports basic auth.
+- `options.note` is only used for GHE basic auth.
 - `options.noDeviceFlow` is available to skip the device flow if you are unable to create a `clientId` for some reason, and wish to skip to the personal access token input prompt immediately.
 
 ## Contributing

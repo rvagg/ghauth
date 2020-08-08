@@ -9,8 +9,6 @@ const ora = require('ora')
 
 const defaultUA = 'Magic Node.js application that does magic things with ghauth'
 const defaultScopes = []
-const defaultGithubHost = 'github.com'
-const defaultPromptName = 'GitHub'
 const defaultPasswordReplaceChar = '\u2714'
 
 // split a string at roughly `len` characters, being careful of word boundaries
@@ -39,20 +37,20 @@ function sleep (s) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+function basicAuthHeader (user, pass) {
+  return `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`
+}
+
 // prompt the user for credentials
-async function prompt (options) {
-  const promptName = options.promptName || defaultPromptName
+async function deviceFlowPrompt (options) {
   const scopes = options.scopes || defaultScopes
   const passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
-  const githubHost = options.githubHost || defaultGithubHost
-  const isEnterprise = githubHost !== defaultGithubHost
-  const deviceCodeUrl = `https://${githubHost}/login/device/code`
-  const fallbackDeviceAuthUrl = `https://${githubHost}/login/device`
-  const accessTokenUrl = `https://${githubHost}/login/oauth/access_token`
-  const oauthAppsBaseUrl = `https://${githubHost}/settings/connections/applications`
-  const apiUrl = isEnterprise ? `https://api.${githubHost}` : `https://${githubHost}/api/v3`
-  const userEndpointUrl = `${apiUrl}/user`
-  const patUrl = `https://${githubHost}/settings/tokens`
+  const deviceCodeUrl = 'https://github.com/login/device/code'
+  const fallbackDeviceAuthUrl = 'https://github.com/login/device'
+  const accessTokenUrl = 'https://github.com/login/oauth/access_token'
+  const oauthAppsBaseUrl = 'https://github.com/settings/connections/applications'
+  const userEndpointUrl = 'https://api.github.com/user'
+  const patUrl = 'https://github.com/settings/tokens'
 
   const defaultReqOptions = {
     headers: {
@@ -78,11 +76,10 @@ async function prompt (options) {
       tokenData = await patFlow()
     }
   } else {
-    console.log(`Personal access token auth for ${promptName}.`)
+    console.log('Personal access token auth for Github.')
     tokenData = await patFlow()
   }
 
-  if (!(tokenData || tokenData.token || tokenData.user)) throw new Error('Authentication failed.')
   return tokenData
 
   // prompt for a personal access token with simple validation
@@ -123,7 +120,7 @@ async function prompt (options) {
 
     await initializeNewDeviceFlow()
 
-    const authPrompt = `  Authorize with ${promptName} by opening this URL in a browser:` +
+    const authPrompt = '  Authorize with Github by opening this URL in a browser:' +
                        '\n' +
                        '\n' +
                        `    ${verificationUri}` +
@@ -257,6 +254,109 @@ async function prompt (options) {
   }
 }
 
+// prompt the user for credentials
+async function enterprisePrompt (options) {
+  const defaultNote = 'Node.js command-line app with ghauth'
+  const promptName = options.promptName || 'Github Enterprise'
+  const accessTokenUrl = options.accessTokenUrl
+  const scopes = options.scopes || defaultScopes
+  const usernamePrompt = options.usernamePrompt || `Your ${promptName} username:`
+  const tokenQuestionPrompt = options.tokenQuestionPrompt || 'This appears to be a personal access token, is that correct? [y/n] '
+  const passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
+  const authUrl = options.authUrl || 'https://api.github.com/authorizations'
+  let passwordPrompt = options.passwordPrompt
+
+  if (!passwordPrompt) {
+    let patMsg = `You may either enter your ${promptName} password or use a 40 character personal access token generated at ${accessTokenUrl} ` +
+      (scopes.length ? `with the following scopes: ${scopes.join(', ')}` : '(no scopes necessary)')
+    patMsg = newlineify(80, patMsg)
+    passwordPrompt = `${patMsg}\nYour ${promptName} password:`
+  }
+
+  // username
+
+  const user = await read({ prompt: usernamePrompt })
+  if (user === '') {
+    return
+  }
+
+  // password || token
+
+  const pass = await read({ prompt: passwordPrompt, silent: true, replace: passwordReplaceChar })
+
+  if (pass.length === 40) {
+    // might be a token?
+    do {
+      const yorn = await read({ prompt: tokenQuestionPrompt })
+
+      if (yorn.toLowerCase() === 'y') {
+        // a token, apparently we have everything
+        return { user, token: pass }
+      }
+
+      if (yorn.toLowerCase() === 'n') {
+        break
+      }
+    } while (true)
+  }
+
+  // username + password
+  // check for 2FA, this may trigger an SMS if the user set it up that way
+  const otpReqOptions = {
+    headers: {
+      'User-Agent': options.userAgent || defaultUA,
+      Authorization: basicAuthHeader(user, pass)
+    },
+    method: 'POST'
+  }
+
+  const response = await fetch(authUrl, otpReqOptions)
+  const otpHeader = response.headers.get('x-github-otp')
+  response.arrayBuffer() // exaust response body
+
+  let otp
+  if (otpHeader && otpHeader.indexOf('required') > -1) {
+    otp = await read({ prompt: 'Your GitHub OTP/2FA Code (required):' })
+  }
+
+  const currentDate = new Date().toJSON()
+  const patReqOptions = {
+    headers: {
+      'User-Agent': options.userAgent || defaultUA,
+      'Content-type': 'application/json',
+      Authorization: basicAuthHeader(user, pass)
+    },
+    method: 'POST',
+    body: JSON.stringify({
+      scopes,
+      note: `${(options.note || defaultNote)} (${currentDate})`
+    })
+  }
+  if (otp) patReqOptions.headers['X-GitHub-OTP'] = otp
+
+  const data = await fetch(authUrl, patReqOptions).then(res => res.json())
+
+  if (data.message) {
+    const error = new Error(data.message)
+    error.data = data
+    throw error
+  }
+
+  if (!data.token) {
+    throw new Error('No token from GitHub!')
+  }
+
+  return { user, token: data.token, scope: scopes.join(' ') }
+}
+
+function isEnterprise (authUrl) {
+  if (!authUrl) return false
+  const parsedAuthUrl = new URL(authUrl)
+  if (parsedAuthUrl.host === 'github.com') return false
+  if (parsedAuthUrl.host === 'api.github.com') return false
+  return true
+}
+
 async function auth (options) {
   if (typeof options !== 'object') {
     throw new TypeError('ghauth requires an options argument')
@@ -277,11 +377,17 @@ async function auth (options) {
     }
   }
 
-  if (typeof options.clientId !== 'string' && !options.noDeviceFlow) {
-    throw new TypeError('ghauth requires an options.clientId property')
-  }
+  let tokenData
+  if (!isEnterprise(options.authUrl)) {
+    if (typeof options.clientId !== 'string' && !options.noDeviceFlow) {
+      throw new TypeError('ghauth requires an options.clientId property')
+    }
 
-  const tokenData = await prompt(options) // prompt the user for data
+    tokenData = await deviceFlowPrompt(options) // prompt the user for data
+  } else {
+    tokenData = await enterprisePrompt(options) // prompt the user for data
+  }
+  if (!(tokenData || tokenData.token || tokenData.user)) throw new Error('Authentication error: token or user not generated')
 
   if (options.noSave) {
     return tokenData
