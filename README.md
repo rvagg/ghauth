@@ -6,7 +6,7 @@
 
 **Important**
 
-Github deprecated their basic username/password auth api and have [scheduled to sunset it November 13, 2020][deprecated].  `ghauth` v5.0.0+ supports the new [device auth flow][df] but requires some implementation changes and application registration with Github. Review the new API docs and see [Setup](#setup) for a simple upgrade guide between v4 and v5.
+Github deprecated their basic username/password auth api and have [scheduled to sunset it November 13, 2020](https://developer.github.com/changes/2020-02-14-deprecating-oauth-auth-endpoint/).  `ghauth` v5.0.0+ supports the new [device auth flow](https://docs.github.com/en/developers/apps/authorizing-oauth-apps#device-flow) but requires some implementation changes and application registration with Github. Review the new API docs and see [Setup](#setup) for a simple upgrade guide between v4 and v5.
 
 ## Example usage
 
@@ -110,7 +110,7 @@ Github requires a `clientId` from a Github oAuth Application in order to complet
 4. Select Beta Features in the settings side bar.
 4. Enable Device authorization flow.
 
-- [Device flow docs][df]
+- [Device flow docs](https://docs.github.com/en/developers/apps/authorizing-oauth-apps#device-flow)
 
 ### v4 to v5 Upgrade guide
 
@@ -148,6 +148,3 @@ License &amp; copyright
 Copyright (c) 2014 ghauth contributors (listed above).
 
 ghauth is licensed under the MIT license. All rights not explicitly granted in the MIT license are reserved. See the included LICENSE.md file for more details.
-
-[df]: https://docs.github.com/en/developers/apps/authorizing-oauth-apps#device-flow
-[deprecated]: https://developer.github.com/changes/2020-02-14-deprecating-oauth-auth-endpoint/
