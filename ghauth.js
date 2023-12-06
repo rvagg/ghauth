@@ -2,7 +2,6 @@
 
 const { promisify } = require('util')
 const read = promisify(require('read'))
-const fetch = require('node-fetch')
 const appCfg = require('application-config')
 const querystring = require('querystring')
 const ora = require('ora')
