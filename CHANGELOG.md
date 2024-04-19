@@ -1,3 +1,10 @@
+## [6.0.3](https://github.com/rvagg/ghauth/compare/v6.0.2...v6.0.3) (2024-04-19)
+
+
+### Trivial Changes
+
+* **deps:** bump actions/checkout from 4.1.2 to 4.1.3 ([99e0af6](https://github.com/rvagg/ghauth/commit/99e0af6caa21c9b5e10edd22ec964c889cf3cf7d))
+
 ## [6.0.2](https://github.com/rvagg/ghauth/compare/v6.0.1...v6.0.2) (2024-03-13)
 
 
