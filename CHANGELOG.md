@@ -1,3 +1,9 @@
+## [6.0.15](https://github.com/rvagg/ghauth/compare/v6.0.14...v6.0.15) (2025-09-05)
+
+### Trivial Changes
+
+* **deps:** bump actions/setup-node from 4.4.0 to 5.0.0 ([#61](https://github.com/rvagg/ghauth/issues/61)) ([5d2f552](https://github.com/rvagg/ghauth/commit/5d2f55298d952b937a3c8caaacc95e813a659d44))
+
 ## [6.0.14](https://github.com/rvagg/ghauth/compare/v6.0.13...v6.0.14) (2025-08-12)
 
 ### Trivial Changes
