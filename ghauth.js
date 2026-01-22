@@ -1,47 +1,22 @@
-'use strict'
-
-const { promisify } = require('util')
-const read = promisify(require('read'))
-const appCfg = require('application-config')
-const querystring = require('querystring')
-const ora = require('ora')
+import { read } from 'read'
+import ora from 'ora'
+import { createConfig } from './lib/config.js'
+import { newlineify, sleep, basicAuthHeader, isEnterprise, isValidPat } from './lib/utils.js'
 
 const defaultUA = 'Magic Node.js application that does magic things with ghauth'
 const defaultScopes = []
 const defaultPasswordReplaceChar = '\u2714'
 
-// split a string at roughly `len` characters, being careful of word boundaries
-function newlineify (len, str) {
-  let s = ''
-  let l = 0
-  const sa = str.split(' ')
+const defaultDeps = { read, ora, createConfig, fetch: globalThis.fetch }
 
-  while (sa.length) {
-    if (l + sa[0].length > len) {
-      s += '\n'
-      l = 0
-    } else {
-      s += ' '
-    }
-    s += sa[0]
-    l += sa[0].length
-    sa.splice(0, 1)
-  }
-
-  return s
-}
-
-function sleep (s) {
-  const ms = s * 1000
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-function basicAuthHeader (user, pass) {
-  return `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`
-}
-
-// prompt the user for credentials
-async function deviceFlowPrompt (options) {
+/**
+ * Prompt the user for credentials via OAuth device flow.
+ * @param {object} options - Auth options
+ * @param {object} deps - Injected dependencies
+ * @returns {Promise<object>} Token data
+ */
+async function deviceFlowPrompt (options, deps) {
+  const { read, ora, fetch } = deps
   const scopes = options.scopes || defaultScopes
   const passwordReplaceChar = options.passwordReplaceChar || defaultPasswordReplaceChar
   const deviceCodeUrl = 'https://github.com/login/device/code'
@@ -59,17 +34,15 @@ async function deviceFlowPrompt (options) {
     method: 'post'
   }
 
-  // get token data from device flow, or interrupt to try PAT flow
   const deviceFlowSpinner = ora()
-  let endDeviceFlow = false // race status indicator for deviceFlowInterrupt and deviceFlow
-  let interruptHandlerRef // listener reference for deviceFlowInterrupt
+  let endDeviceFlow = false
+  let interruptHandlerRef
   let tokenData
 
   if (!options.noDeviceFlow) {
     tokenData = await Promise.race([deviceFlow(), deviceFlowInterrupt()])
-    process.stdin.off('keypress', interruptHandlerRef) // disable keypress listener when race finishes
+    process.stdin.off('keypress', interruptHandlerRef)
 
-    // try the PAT flow if interrupted
     if (tokenData === false) {
       deviceFlowSpinner.warn('Device flow canceled.')
       tokenData = await patFlow()
@@ -81,21 +54,25 @@ async function deviceFlowPrompt (options) {
 
   return tokenData
 
-  // prompt for a personal access token with simple validation
   async function patFlow () {
-    let patMsg = `Enter a 40 character personal access token generated at ${patUrl} ` +
-      (scopes.length ? `with the following scopes: ${scopes.join(', ')}` : '(no scopes necessary)') + '\n' +
-      'PAT: '
-    patMsg = newlineify(80, patMsg)
-    const pat = await read({ prompt: patMsg, silent: true, replace: passwordReplaceChar })
+    console.log(`
+  Create a Personal Access Token at ${patUrl}
+
+    1. Click "Generate new token" → "Generate new token (classic)"
+       (fine-grained tokens also work)
+    2. Set a name, e.g. "${options.configName || 'my-cli-app'}"
+    3. ${scopes.length ? `Select scopes: ${scopes.join(', ')}` : 'No scopes needed'}
+    4. Generate and copy the token
+`)
+
+    const pat = await read({ prompt: 'Paste your token here: ', silent: true, replace: passwordReplaceChar })
     if (!pat) throw new TypeError('Empty personal access token received.')
-    if (pat.length !== 40) throw new TypeError('Personal access tokens must be 40 characters long')
+    if (!isValidPat(pat)) throw new TypeError('Invalid personal access token format')
     const tokenData = { token: pat }
 
     return supplementUserData(tokenData)
   }
 
-  // cancel deviceFlow if user presses enter``
   function deviceFlowInterrupt () {
     return new Promise((resolve, reject) => {
       process.stdin.on('keypress', keyPressHandler)
@@ -110,7 +87,6 @@ async function deviceFlowPrompt (options) {
     })
   }
 
-  // create a device flow session and return tokenData
   async function deviceFlow () {
     let currentInterval
     let currentDeviceCode
@@ -126,14 +102,14 @@ async function deviceFlowPrompt (options) {
                        '\n' +
                        '\n' +
                        '  and enter the following User Code:\n' +
-                       '  (or press ⏎ to enter a personal access token)\n'
+                       '  (or press \u23ce to enter a personal access token)\n'
 
     console.log(authPrompt)
 
     deviceFlowSpinner.start(`User Code: ${currentUserCode}`)
 
     const accessToken = await pollAccessToken()
-    if (accessToken === false) return false // interrupted, don't return anything
+    if (accessToken === false) return false
 
     const tokenData = { token: accessToken.access_token, scope: accessToken.scope }
     deviceFlowSpinner.succeed(`Device flow complete.  Manage at ${oauthAppsBaseUrl}/${options.clientId}`)
@@ -194,10 +170,9 @@ async function deviceFlowPrompt (options) {
         if (data.error === 'incorrect_client_credentials') throw new Error(data.error_description || 'Incorrect clientId.')
         if (data.error === 'incorrect_device_code') throw new Error(data.error_description || 'Incorrect device code.')
         if (data.error === 'access_denied') throw new Error(data.error_description || 'The authorized user canceled the access request.')
-        endDeviceFlowDetected = endDeviceFlow // update inner interrupt scope
+        endDeviceFlowDetected = endDeviceFlow
       }
 
-      // interrupted
       return false
     }
   }
@@ -209,7 +184,7 @@ async function deviceFlowPrompt (options) {
       grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
     }
 
-    return fetch(`${accessTokenUrl}?${querystring.stringify(query)}`, defaultReqOptions).then(req => req.json())
+    return fetch(`${accessTokenUrl}?${new URLSearchParams(query).toString()}`, defaultReqOptions).then(req => req.json())
   }
 
   function requestDeviceCode () {
@@ -218,7 +193,7 @@ async function deviceFlowPrompt (options) {
     }
     if (scopes.length) query.scope = scopes.join(' ')
 
-    return fetch(`${deviceCodeUrl}?${querystring.stringify(query)}`, defaultReqOptions).then(req => req.json())
+    return fetch(`${deviceCodeUrl}?${new URLSearchParams(query).toString()}`, defaultReqOptions).then(req => req.json())
   }
 
   function requestUser (token) {
@@ -235,7 +210,6 @@ async function deviceFlowPrompt (options) {
   }
 
   async function supplementUserData (tokenData) {
-    // Get user login info
     const userSpinner = ora().start('Retrieving user...')
     try {
       const user = await requestUser(tokenData.token)
@@ -253,8 +227,14 @@ async function deviceFlowPrompt (options) {
   }
 }
 
-// prompt the user for credentials
-async function enterprisePrompt (options) {
+/**
+ * Prompt the user for credentials via GitHub Enterprise basic auth.
+ * @param {object} options - Auth options
+ * @param {object} deps - Injected dependencies
+ * @returns {Promise<object>} Token data
+ */
+async function enterprisePrompt (options, deps) {
+  const { read, fetch } = deps
   const defaultNote = 'Node.js command-line app with ghauth'
   const promptName = options.promptName || 'Github Enterprise'
   const accessTokenUrl = options.accessTokenUrl
@@ -266,30 +246,24 @@ async function enterprisePrompt (options) {
   let passwordPrompt = options.passwordPrompt
 
   if (!passwordPrompt) {
-    let patMsg = `You may either enter your ${promptName} password or use a 40 character personal access token generated at ${accessTokenUrl} ` +
+    let patMsg = `You may either enter your ${promptName} password or use a personal access token generated at ${accessTokenUrl} ` +
       (scopes.length ? `with the following scopes: ${scopes.join(', ')}` : '(no scopes necessary)')
     patMsg = newlineify(80, patMsg)
     passwordPrompt = `${patMsg}\nYour ${promptName} password:`
   }
-
-  // username
 
   const user = await read({ prompt: usernamePrompt })
   if (user === '') {
     return
   }
 
-  // password || token
-
   const pass = await read({ prompt: passwordPrompt, silent: true, replace: passwordReplaceChar })
 
   if (pass.length === 40) {
-    // might be a token?
     do {
       const yorn = await read({ prompt: tokenQuestionPrompt })
 
       if (yorn.toLowerCase() === 'y') {
-        // a token, apparently we have everything
         return { user, token: pass }
       }
 
@@ -299,8 +273,6 @@ async function enterprisePrompt (options) {
     } while (true)
   }
 
-  // username + password
-  // check for 2FA, this may trigger an SMS if the user set it up that way
   const otpReqOptions = {
     headers: {
       'User-Agent': options.userAgent || defaultUA,
@@ -311,7 +283,7 @@ async function enterprisePrompt (options) {
 
   const response = await fetch(authUrl, otpReqOptions)
   const otpHeader = response.headers.get('x-github-otp')
-  response.arrayBuffer() // exaust response body
+  response.arrayBuffer()
 
   let otp
   if (otpHeader && otpHeader.indexOf('required') > -1) {
@@ -348,16 +320,16 @@ async function enterprisePrompt (options) {
   return { user, token: data.token, scope: scopes.join(' ') }
 }
 
-function isEnterprise (authUrl) {
-  if (!authUrl) return false
-  const parsedAuthUrl = new URL(authUrl)
-  if (parsedAuthUrl.host === 'github.com') return false
-  if (parsedAuthUrl.host === 'api.github.com') return false
-  return true
-}
+/**
+ * Main auth function.
+ * @param {object} options - Auth options
+ * @param {object} deps - Injected dependencies
+ * @returns {Promise<object>} Auth data
+ */
+async function auth (options, deps) {
+  const { createConfig } = deps
 
-async function auth (options) {
-  if (typeof options !== 'object') {
+  if (typeof options !== 'object' || options === null) {
     throw new TypeError('ghauth requires an options argument')
   }
 
@@ -368,25 +340,22 @@ async function auth (options) {
       throw new TypeError('ghauth requires an options.configName property')
     }
 
-    config = appCfg(options.configName)
+    config = createConfig(options.configName)
     const authData = await config.read()
     if (authData && authData.user && authData.token) {
-      // we had it saved in a config file
       return authData
     }
   }
 
   let tokenData
   if (!isEnterprise(options.authUrl)) {
-    if (typeof options.clientId !== 'string' && !options.noDeviceFlow) {
-      throw new TypeError('ghauth requires an options.clientId property')
-    }
-
-    tokenData = await deviceFlowPrompt(options) // prompt the user for data
+    // Use PAT flow if no clientId provided, or if noDeviceFlow is explicitly set
+    const usePatFlow = typeof options.clientId !== 'string' || options.noDeviceFlow
+    tokenData = await deviceFlowPrompt({ ...options, noDeviceFlow: usePatFlow }, deps)
   } else {
-    tokenData = await enterprisePrompt(options) // prompt the user for data
+    tokenData = await enterprisePrompt(options, deps)
   }
-  if (!(tokenData || tokenData.token || tokenData.user)) throw new Error('Authentication error: token or user not generated')
+  if (!tokenData || !tokenData.token || !tokenData.user) throw new Error('Authentication error: token or user not generated')
 
   if (options.noSave) {
     return tokenData
@@ -400,10 +369,12 @@ async function auth (options) {
   return tokenData
 }
 
-module.exports = function ghauth (options, callback) {
-  if (typeof callback !== 'function') {
-    return auth(options) // promise, it can be awaited
-  }
-
-  auth(options).then((data) => callback(null, data)).catch(callback)
+/**
+ * Create and load persistent GitHub authentication tokens for command-line apps.
+ * @param {object} options - Auth options
+ * @param {object} [deps] - Optional dependency injection for testing
+ * @returns {Promise<object>} Auth data with user and token
+ */
+export default function ghauth (options, deps) {
+  return auth(options, deps ? { ...defaultDeps, ...deps } : defaultDeps)
 }

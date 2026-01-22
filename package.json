@@ -2,10 +2,16 @@
   "name": "ghauth",
   "version": "6.0.19",
   "description": "Create and load persistent GitHub authentication tokens for command-line apps",
-  "main": "ghauth.js",
+  "type": "module",
+  "exports": "./ghauth.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "lint": "standard *.js",
-    "test": "npm run lint && echo 'no tests to run'",
+    "lint": "standard",
+    "test:unit": "node --test test/*.test.js",
+    "test": "npm run lint && npm run test:unit",
+    "smoke": "node test/smoke.js",
     "build": "true"
   },
   "repository": {
@@ -25,12 +31,19 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "application-config": "^2.0.0",
-    "ora": "^4.0.5",
-    "read": "^1.0.7"
+    "ora": "^9.1.0",
+    "read": "^5.0.1"
   },
   "devDependencies": {
-    "standard": "^17.1.0"
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.0",
+    "@semantic-release/npm": "^13.0.0",
+    "@semantic-release/release-notes-generator": "^14.0.1",
+    "conventional-changelog-conventionalcommits": "^9.0.0",
+    "semantic-release": "^25.0.0",
+    "standard": "^17.1.2"
   },
   "release": {
     "branches": [
