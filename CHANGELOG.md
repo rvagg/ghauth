@@ -1,3 +1,23 @@
+## [7.0.0](https://github.com/rvagg/ghauth/compare/v6.0.19...v7.0.0) (2026-01-22)
+
+### ⚠ BREAKING CHANGES
+
+* ESM only, promise-only API, requires Node.js >=20
+
+- Replace application-config with native modules
+- Support fine-grained PATs (github_pat_ prefix)
+- Add step-by-step PAT creation prompts
+- Add test suite (42 tests)
+- Update deps: ora@9, read@5
+
+### Features
+
+* ESM-only with Node.js 20+, improved PAT flow ([#72](https://github.com/rvagg/ghauth/issues/72)) ([8804964](https://github.com/rvagg/ghauth/commit/880496444e0621d475c55aa09971431aceaf5e44))
+
+### Trivial Changes
+
+* **deps:** bump actions/setup-node from 6.1.0 to 6.2.0 ([#70](https://github.com/rvagg/ghauth/issues/70)) ([106d135](https://github.com/rvagg/ghauth/commit/106d135c072e70ea69c8d4f6ea6773e5530978de))
+
 ## [6.0.19](https://github.com/rvagg/ghauth/compare/v6.0.18...v6.0.19) (2025-12-04)
 
 ### Trivial Changes
