@@ -1,3 +1,9 @@
+## [7.0.1](https://github.com/rvagg/ghauth/compare/v7.0.0...v7.0.1) (2026-01-27)
+
+### Trivial Changes
+
+* consistent GHA CI ([f00f119](https://github.com/rvagg/ghauth/commit/f00f1190b06d7952aefb607bb2dcbfd721a6cea8))
+
 ## [7.0.0](https://github.com/rvagg/ghauth/compare/v6.0.19...v7.0.0) (2026-01-22)
 
 ### ⚠ BREAKING CHANGES
