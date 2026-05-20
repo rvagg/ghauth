@@ -32,7 +32,7 @@
   "license": "MIT",
   "dependencies": {
     "ora": "^9.1.0",
-    "read": "^5.0.1"
+    "read": "^6.0.0"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
