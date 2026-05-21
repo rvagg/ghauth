@@ -1,3 +1,9 @@
+## [7.0.4](https://github.com/rvagg/ghauth/compare/v7.0.3...v7.0.4) (2026-05-21)
+
+### Trivial Changes
+
+* **deps:** bump read from 5.0.1 to 6.0.0 ([#75](https://github.com/rvagg/ghauth/issues/75)) ([6edbfcb](https://github.com/rvagg/ghauth/commit/6edbfcb53a06a6a79e6802a437a8a57f6298143b))
+
 ## [7.0.3](https://github.com/rvagg/ghauth/compare/v7.0.2...v7.0.3) (2026-04-29)
 
 ### Trivial Changes
