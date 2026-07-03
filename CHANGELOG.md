@@ -1,3 +1,5 @@
+## [7.0.8](https://github.com/rvagg/ghauth/compare/v7.0.7...v7.0.8) (2026-07-03)
+
 ## [7.0.7](https://github.com/rvagg/ghauth/compare/v7.0.6...v7.0.7) (2026-06-23)
 
 ### Trivial Changes
