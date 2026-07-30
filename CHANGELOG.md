@@ -1,8 +1,20 @@
 ## [7.0.10](https://github.com/rvagg/ghauth/compare/v7.0.9...v7.0.10) (2026-07-27)
 
+### Trivial Changes
+
+* **deps:** bump the github-actions-minor-patch group with 2 updates ([#82](https://github.com/rvagg/ghauth/issues/82)) ([fb63a52](https://github.com/rvagg/ghauth/commit/fb63a5248cfa7bd49928012399db9f11649a516f))
+
 ## [7.0.9](https://github.com/rvagg/ghauth/compare/v7.0.8...v7.0.9) (2026-07-21)
 
+### Trivial Changes
+
+* **ci:** slow down dependabot, add depsound, pin actions by hash ([#81](https://github.com/rvagg/ghauth/issues/81)) ([8c926f0](https://github.com/rvagg/ghauth/commit/8c926f0724faba99c24e0c27f5d1cb1beb4ccf00))
+
 ## [7.0.8](https://github.com/rvagg/ghauth/compare/v7.0.7...v7.0.8) (2026-07-03)
+
+### Trivial Changes
+
+* **deps-dev:** bump conventional-changelog-conventionalcommits ([#79](https://github.com/rvagg/ghauth/issues/79)) ([e3fe99c](https://github.com/rvagg/ghauth/commit/e3fe99c5f9a599cc2a2bd18a33c8dd4bf8868cc7))
 
 ## [7.0.7](https://github.com/rvagg/ghauth/compare/v7.0.6...v7.0.7) (2026-06-23)
 
