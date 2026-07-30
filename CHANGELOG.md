@@ -1,3 +1,9 @@
+## [7.0.11](https://github.com/rvagg/ghauth/compare/v7.0.10...v7.0.11) (2026-07-30)
+
+### Trivial Changes
+
+* downgrade broken changelog maker, backfill entries ([#83](https://github.com/rvagg/ghauth/issues/83)) ([c3c5116](https://github.com/rvagg/ghauth/commit/c3c51167d5633a04e0b8a304e33c2baee4798131))
+
 ## [7.0.10](https://github.com/rvagg/ghauth/compare/v7.0.9...v7.0.10) (2026-07-27)
 
 ### Trivial Changes
