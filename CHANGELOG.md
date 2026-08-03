@@ -1,3 +1,9 @@
+## [7.0.12](https://github.com/rvagg/ghauth/compare/v7.0.11...v7.0.12) (2026-08-03)
+
+### Trivial Changes
+
+* **deps:** bump the github-actions-minor-patch group with 2 updates ([#84](https://github.com/rvagg/ghauth/issues/84)) ([efc0ade](https://github.com/rvagg/ghauth/commit/efc0adea058134094bf088f8f0a21bace0ec395b))
+
 ## [7.0.11](https://github.com/rvagg/ghauth/compare/v7.0.10...v7.0.11) (2026-07-30)
 
 ### Trivial Changes
