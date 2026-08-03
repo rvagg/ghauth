@@ -1,3 +1,9 @@
+## [7.0.14](https://github.com/rvagg/ghauth/compare/v7.0.13...v7.0.14) (2026-08-03)
+
+### Trivial Changes
+
+* **deps-dev:** bump @semantic-release/git from 10.0.1 to 11.0.1 ([#85](https://github.com/rvagg/ghauth/issues/85)) ([4a5388e](https://github.com/rvagg/ghauth/commit/4a5388eeb135a66fa17fd610108ffe42711655e7))
+
 ## [7.0.13](https://github.com/rvagg/ghauth/compare/v7.0.12...v7.0.13) (2026-08-03)
 
 ### Trivial Changes
