@@ -1,3 +1,9 @@
+## [7.0.13](https://github.com/rvagg/ghauth/compare/v7.0.12...v7.0.13) (2026-08-03)
+
+### Trivial Changes
+
+* **deps-dev:** bump @semantic-release/changelog from 6.0.3 to 7.0.0 ([#86](https://github.com/rvagg/ghauth/issues/86)) ([28fbcb6](https://github.com/rvagg/ghauth/commit/28fbcb692a14d2ca75addd5107df0644c161c219))
+
 ## [7.0.12](https://github.com/rvagg/ghauth/compare/v7.0.11...v7.0.12) (2026-08-03)
 
 ### Trivial Changes
