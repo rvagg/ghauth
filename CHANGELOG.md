@@ -1,3 +1,9 @@
+## [7.0.15](https://github.com/rvagg/ghauth/compare/v7.0.14...v7.0.15) (2026-10-19)
+
+### Trivial Changes
+
+* **deps:** bump actions/setup-node ([#90](https://github.com/rvagg/ghauth/issues/90)) ([480383d](https://github.com/rvagg/ghauth/commit/480383d015e4ccb40bcd24ef5da68f446518f547))
+
 ## [7.0.14](https://github.com/rvagg/ghauth/compare/v7.0.13...v7.0.14) (2026-08-03)
 
 ### Trivial Changes
